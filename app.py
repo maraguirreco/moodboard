@@ -117,7 +117,7 @@ def fetch_ddg_images(query, limit=4):
         print(f"Error en DuckDuckGo: {e}")
     return images
 def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboard"):
-    """Crea un tablero en Miro, añade frames y acomoda las imágenes."""
+    """Crea un tablero en Miro con formato de Tabla dinámica estructurada."""
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -133,39 +133,65 @@ def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboar
     
     if not board_id:
         return None, f"Error creando el tablero: {board_res}"
+
+    # 2. Configuración de la "Tabla"
+    categorias = ["logo", "colores", "tipografia", "formas", "imagenes"]
+    titulos = ["Logotipo", "Colores", "Tipografía", "Formas", "Imágenes"]
+    
+    # Colores HEX para cada cabecera (Puedes personalizarlos)
+    colores_cabecera = ["#ff9999", "#99ccff", "#99ff99", "#ffcc99", "#cc99ff"]
+    
+    ancho_columna = 500
+    alto_imagen = 400
+    margen = 50
+    
+    # Calcular el alto dinámico basado en la columna con más imágenes
+    max_imagenes = max([len(resultados_visuales[cat]['arena'] + resultados_visuales[cat]['web']) for cat in categorias])
+    alto_frame = (max_imagenes * (alto_imagen + margen)) + 200 # +200 para la cabecera
+    ancho_frame = (len(categorias) * ancho_columna)
+    
+    # 3. Crear el Gran Frame Contenedor (El fondo de la tabla)
+    frame_payload = {
+        "data": {"title": f"Moodboard Estructurado - {nombre_proyecto}"},
+        "position": {"x": ancho_frame / 2, "y": alto_frame / 2},
+        "geometry": {"width": ancho_frame, "height": alto_frame}
+    }
+    frame_res = requests.post(f"{board_url}/{board_id}/frames", json=frame_payload, headers=headers).json()
+    frame_id = frame_res.get('id')
+    
+    # 4. Dibujar las Columnas, Cabeceras e Imágenes
+    for col_idx, cat in enumerate(categorias):
+        # Posición base en X para esta columna (relativa al centro del frame)
+        col_x = (col_idx * ancho_columna) - (ancho_frame / 2) + (ancho_columna / 2)
         
-    # 2. Iterar sobre las categorías y crear Frames e Imágenes
-    categorias = list(resultados_visuales.keys())
-    for idx, cat in enumerate(categorias):
-        # Posicionamiento horizontal de los frames (cada uno a 1200px del anterior)
-        frame_x = idx * 1200
-        frame_payload = {
-            "data": {"title": cat.upper()},
-            "position": {"x": frame_x, "y": 0},
-            "geometry": {"width": 1000, "height": 1000}
+        # Dibujar rectángulos de color (Cabeceras)
+        shape_payload = {
+            "data": {
+                "shape": "rectangle",
+                "content": f"<p><strong>{titulos[col_idx]}</strong></p>"
+            },
+            "style": {
+                "fillColor": colores_cabecera[col_idx],
+                "textAlign": "center"
+            },
+            "position": {"x": col_x, "y": -(alto_frame / 2) + 100},
+            "geometry": {"width": ancho_columna - 20, "height": 80},
+            "parent": {"id": frame_id}
         }
-        frame_res = requests.post(f"{board_url}/{board_id}/frames", json=frame_payload, headers=headers).json()
-        frame_id = frame_res.get('id')
+        requests.post(f"{board_url}/{board_id}/shapes", json=shape_payload, headers=headers)
         
-        # Juntar todas las imágenes de esta categoría
-        todas_las_imagenes = resultados_visuales[cat]['arena'] + resultados_visuales[cat]['web']
+        # Obtener y acomodar las imágenes verticalmente en esta columna
+        todas_las_imagenes = resultados_visuales.get(cat, {}).get('arena', []) + resultados_visuales.get(cat, {}).get('web', [])
         
-        # Subir las imágenes al frame usando una cuadrícula (grid) matemática simple
-        for i, img_url in enumerate(todas_las_imagenes[:8]): # Máximo 8 imágenes por frame
-            col = i % 2       # 0, 1, 0, 1...
-            row = i // 2      # 0, 0, 1, 1...
-            
-            # Posición relativa al centro del Frame padre
-            img_x = (col * 400) - 200
-            img_y = (row * 400) - 200
+        for row_idx, img_url in enumerate(todas_las_imagenes):
+            img_y = -(alto_frame / 2) + 200 + (row_idx * (alto_imagen + margen)) + (alto_imagen / 2)
             
             img_payload = {
                 "data": {"url": img_url},
                 "parent": {"id": frame_id},
-                "position": {"x": img_x, "y": img_y},
-                "geometry": {"width": 350}
+                "position": {"x": col_x, "y": img_y},
+                "geometry": {"width": ancho_columna - margen}
             }
-            # Enviamos la imagen a Miro
             requests.post(f"{board_url}/{board_id}/images", json=img_payload, headers=headers)
             
     return board_view_url, None
