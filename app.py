@@ -326,9 +326,8 @@ if st.button("🚀 Generar y Buscar Moodboards"):
                     nombre_tablero = st.session_state.form_data.get('industria', 'Nueva Marca')
                     miro_url, error = export_to_miro(resultados_visuales, miro_token, nombre_proyecto=nombre_tablero)
                     
-                    if error:
+                  if error:
                         st.error(error)
                     else:
                         st.success("¡Tablero creado con éxito!")
                         st.markdown(f"### 🎉 [Haz clic aquí para abrir tu Moodboard en Miro]({miro_url})")
-                        st.balloons()
