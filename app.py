@@ -53,7 +53,7 @@ def analyze_with_ai(text, api_key):
     """
     
     response = client.chat.completions.create(
-        model="google/gemini-1.5-flash", 
+        model="google/gemini-flash-1.5", # <--- Cambia el nombre aquí
         messages=[{"role": "user", "content": prompt}]
     )
     
@@ -83,7 +83,7 @@ def generate_search_queries(form_data, api_key):
     """
     
     response = client.chat.completions.create(
-        model="google/gemini-1.5-flash",
+        model="google/gemini-flash-1.5", # <--- Cambia el nombre aquí también
         messages=[{"role": "user", "content": prompt}]
     )
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
