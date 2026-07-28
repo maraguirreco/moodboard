@@ -52,8 +52,8 @@ def analyze_with_ai(text, api_key):
     Texto a analizar: {text}
     """
     
- response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
+    response = client.chat.completions.create(
+        model="openai/gpt-4o-mini", 
         messages=[{"role": "user", "content": prompt}]
     )
     
