@@ -2,7 +2,8 @@ import streamlit as st
 from openai import OpenAI
 import PyPDF2
 import json
-import re
+import requests
+from duckduckgo_search import DDGS
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA Y ESTADO
@@ -31,91 +32,90 @@ def extract_text_from_pdf(pdf_file):
         text += page.extract_text() + "\n"
     return text
 
-def analyze_with_gemini(text, api_key):
-    """Envía el texto a Gemini para extraer los parámetros de diseño."""
-    genai.configure(api_key=api_key)
-    
-    # Usamos Gemini 1.5 Flash que es rapidísimo y muy bueno estructurando JSON
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+def analyze_with_ai(text, api_key):
+    """Envía el texto a OpenRouter para extraer los parámetros de diseño."""
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     prompt = f"""
     Eres un Director de Arte experto. Analiza el siguiente documento de conceptualización de marca y extrae los parámetros visuales solicitados.
     Si el documento no menciona algo, déjalo en blanco (""). 
     
-    Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta (no agregues markdown ni texto adicional):
+    Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
     {{
-        "industria": "string",
-        "personalidad": "string (separado por comas)",
-        "resumen": "string",
-        "anti_referentes": "string (separado por comas)",
-        "logo_estilo": "string",
-        "logo_arquetipo": ["array de strings"],
-        "logo_referencias": "string",
-        "color_muestras": "string (ej: terracota, arena)",
-        "color_temperatura": "string",
-        "color_luz": "string",
-        "tipo_clasificacion": ["array de strings"],
-        "tipo_peso": "string",
-        "tipo_muestra": "string",
-        "formas_bordes": "string",
-        "formas_elementos": ["array de strings"],
-        "formas_layout": "string",
-        "img_sujetos": "string",
-        "img_metafora": "string",
-        "img_vibe": ["array de strings"],
-        "img_encuadre": "string"
+        "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
+        "logo_estilo": "string", "logo_arquetipo": ["array de strings"], "logo_referencias": "string",
+        "color_muestras": "string", "color_temperatura": "string", "color_luz": "string",
+        "tipo_clasificacion": ["array de strings"], "tipo_peso": "string", "tipo_muestra": "string",
+        "formas_bordes": "string", "formas_elementos": ["array de strings"], "formas_layout": "string",
+        "img_sujetos": "string", "img_metafora": "string", "img_vibe": ["array de strings"], "img_encuadre": "string"
     }}
-    
-    Texto a analizar:
-    {text}
+    Texto a analizar: {text}
     """
     
-    response = model.generate_content(prompt)
+    response = client.chat.completions.create(
+        model="google/gemini-1.5-flash", 
+        messages=[{"role": "user", "content": prompt}]
+    )
     
-    # Limpiamos la respuesta en caso de que la IA incluya bloques de código ```json
-    raw_json = response.text.replace("```json", "").replace("```", "").strip()
+    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
+
 def generate_search_queries(form_data, api_key):
-    """Toma los datos del formulario y genera queries de búsqueda en inglés estructurados."""
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    # Preparamos la lista de sitios de alta calidad para el operador site:
+    """Genera queries en inglés usando OpenRouter."""
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
     
     prompt = f"""
-    Eres un curador de diseño gráfico experto. Toma los siguientes parámetros en español de una identidad de marca y tradúcelos a palabras clave (queries) altamente específicas en INGLÉS para buscar referentes visuales.
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
+    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
+    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
+    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
     
-    Contexto de la marca:
-    - Industria: {form_data.get('industria')}
-    - Personalidad: {form_data.get('personalidad')}
-    - Anti-referentes: {form_data.get('anti_referentes')} (Conviértelos en palabras clave negativas en inglés, usando un guión antes de la palabra, ej: -neon -3d -corporate)
+    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
+    1. 'arena_query': Palabras clave estéticas separadas por espacio.
+    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
     
-    Parámetros por categoría:
-    - Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
-    - Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    - Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
-    - Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
-    - Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
-    
-    Instrucciones:
-    Para cada una de las 5 categorías (logo, colores, tipografia, formas, imagenes), genera 2 tipos de queries:
-    1. 'arena_query': Palabras clave estéticas en inglés separadas por espacio.
-    2. 'web_query': Las mismas palabras clave, pero agregando al final los anti-referentes (ej: -cheap) y esta cadena exacta de sitios: {sites}
-    
-    Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-    {{
-        "logo": {{"arena_query": "string", "web_query": "string"}},
-        "colores": {{"arena_query": "string", "web_query": "string"}},
-        "tipografia": {{"arena_query": "string", "web_query": "string"}},
-        "formas": {{"arena_query": "string", "web_query": "string"}},
-        "imagenes": {{"arena_query": "string", "web_query": "string"}}
-    }}
+    Responde ÚNICAMENTE en JSON con la estructura:
+    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
     """
     
-    response = model.generate_content(prompt)
-    raw_json = response.text.replace("```json", "").replace("```", "").strip()
+    response = client.chat.completions.create(
+        model="google/gemini-1.5-flash",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
+
+def fetch_arena_images(query, limit=4):
+    """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
+    url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
+    images = []
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            for block in data.get('blocks', []):
+                if block.get('class') == 'Image' and 'image' in block:
+                    images.append(block['image']['display']['url'])
+                    if len(images) >= limit:
+                        break
+    except Exception as e:
+        print(f"Error en Are.na: {e}")
+    return images
+
+def fetch_ddg_images(query, limit=4):
+    """Busca imágenes en la web (usando tus sitios nicho) vía DuckDuckGo."""
+    images = []
+    try:
+        results = DDGS().images(query, max_results=limit)
+        for r in results:
+            images.append(r['image'])
+    except Exception as e:
+        print(f"Error en DuckDuckGo: {e}")
+    return images
 # ==========================================
 # INTERFAZ DE USUARIO (UI)
 # ==========================================
@@ -138,7 +138,7 @@ if uploaded_file is not None and st.button("✨ Analizar PDF con IA"):
         with st.spinner("Analizando el documento y extrayendo pautas visuales..."):
             try:
                 pdf_text = extract_text_from_pdf(uploaded_file)
-                extracted_data = analyze_with_gemini(pdf_text, gemini_api_key)
+                extracted_data = analyze_with_ai(pdf_text, gemini_api_key)
                 
                 # Actualizamos el estado de la sesión con los datos de la IA
                 # Esto auto-completará los campos abajo
@@ -202,30 +202,51 @@ with tab5:
                               default=[v for v in d.get("img_vibe", []) if v in ["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"]])
     img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""))
 
-# --- BOTÓN FINAL: GENERAR QUERIES ---
+# --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
 st.divider()
-if st.button("🚀 Generar Moodboards (Fase 2)"):
+if st.button("🚀 Generar y Buscar Moodboards"):
     if not gemini_api_key:
-        st.error("Por favor ingresa tu API Key de Gemini en la barra lateral.")
+        st.error("Por favor ingresa tu API Key de OpenRouter en la barra lateral.")
     else:
-        with st.spinner("🧠 Traduciendo tu concepto a código de búsqueda profesional..."):
+        with st.spinner("🧠 1/2: Traduciendo tu concepto a código de búsqueda profesional..."):
             try:
-                # 1. Llamamos a la función para generar los queries
                 queries = generate_search_queries(st.session_state.form_data, gemini_api_key)
-                
-                # 2. Mostramos los resultados en la interfaz para que los veas
-                st.success("¡Queries generados con éxito!")
-                
-                st.write("### 🔍 Así buscará la app en internet:")
-                
-                # Usamos expanders de Streamlit para mostrarlo ordenado
-                for categoria, datos in queries.items():
-                    with st.expander(f"Categoria: {categoria.upper()}"):
-                        st.markdown(f"**🟢 Búsqueda en Are.na:** `{datos['arena_query']}`")
-                        st.markdown(f"**🌐 Búsqueda en Web (Nicho):** `{datos['web_query']}`")
-                
-                # Guardamos los queries en el estado para la siguiente fase
                 st.session_state.queries = queries
-                
             except Exception as e:
                 st.error(f"Hubo un error al generar los queries: {e}")
+                st.stop()
+                
+        with st.spinner("🌐 2/2: Escaneando Are.na y sitios de nicho para extraer imágenes..."):
+            resultados_visuales = {}
+            
+            for categoria, datos in st.session_state.queries.items():
+                img_arena = fetch_arena_images(datos['arena_query'], limit=4)
+                img_web = fetch_ddg_images(datos['web_query'], limit=4)
+                
+                resultados_visuales[categoria] = {
+                    "arena": img_arena,
+                    "web": img_web
+                }
+            
+            st.success("¡Moodboards recopilados con éxito!")
+            
+            # --- RENDERIZADO VISUAL ---
+            st.write("## 🎨 Resultados del Moodboard")
+            
+            for categoria, imagenes in resultados_visuales.items():
+                st.write(f"### {categoria.upper()}")
+                
+                if imagenes['arena']:
+                    st.caption("🟢 Extraído de Are.na")
+                    cols = st.columns(len(imagenes['arena']))
+                    for idx, img_url in enumerate(imagenes['arena']):
+                        with cols[idx]:
+                            st.image(img_url, use_column_width=True)
+                
+                if imagenes['web']:
+                    st.caption("🌐 Extraído de TheDieline, BrandArchive, Cosmos, etc.")
+                    cols = st.columns(len(imagenes['web']))
+                    for idx, img_url in enumerate(imagenes['web']):
+                        with cols[idx]:
+                            st.image(img_url, use_column_width=True)
+                st.divider()
