@@ -117,7 +117,7 @@ def fetch_ddg_images(query, limit=4):
         print(f"Error en DuckDuckGo: {e}")
     return images
 def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboard"):
-    """Crea un tablero en Miro con formato de Tabla dinámica estructurada."""
+    """Crea un tablero en Miro con formato de Tabla dinámica estructurada y colores corporativos."""
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -138,21 +138,28 @@ def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboar
     categorias = ["logo", "colores", "tipografia", "formas", "imagenes"]
     titulos = ["Logotipo", "Colores", "Tipografía", "Formas", "Imágenes"]
     
-    # Colores HEX para cada cabecera (Puedes personalizarlos)
-    colores_cabecera = ["#ff9999", "#99ccff", "#99ff99", "#ffcc99", "#cc99ff"]
+    # Tus colores corporativos
+    color_azul = "#050038"
+    color_fondo = "#F8F6F2"
+    color_casilla = "#FFFFFF"
     
     ancho_columna = 500
     alto_imagen = 400
     margen = 50
     
     # Calcular el alto dinámico basado en la columna con más imágenes
-    max_imagenes = max([len(resultados_visuales[cat]['arena'] + resultados_visuales[cat]['web']) for cat in categorias])
-    alto_frame = (max_imagenes * (alto_imagen + margen)) + 200 # +200 para la cabecera
+    max_imagenes = max([len(resultados_visuales.get(cat, {}).get('arena', []) + resultados_visuales.get(cat, {}).get('web', [])) for cat in categorias])
+    
+    # Si por alguna razón no hay imágenes, damos un alto mínimo
+    if max_imagenes == 0: max_imagenes = 1 
+    
+    alto_frame = (max_imagenes * (alto_imagen + margen)) + 250 # Espacio extra para la cabecera
     ancho_frame = (len(categorias) * ancho_columna)
     
-    # 3. Crear el Gran Frame Contenedor (El fondo de la tabla)
+    # 3. Crear el Gran Frame Contenedor (El fondo gris de la tabla)
     frame_payload = {
         "data": {"title": f"Moodboard Estructurado - {nombre_proyecto}"},
+        "style": {"fillColor": color_fondo}, # <-- Aquí inyectamos el gris #F8F6F2
         "position": {"x": ancho_frame / 2, "y": alto_frame / 2},
         "geometry": {"width": ancho_frame, "height": alto_frame}
     }
@@ -164,18 +171,21 @@ def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboar
         # Posición base en X para esta columna (relativa al centro del frame)
         col_x = (col_idx * ancho_columna) - (ancho_frame / 2) + (ancho_columna / 2)
         
-        # Dibujar rectángulos de color (Cabeceras)
+        # Dibujar rectángulos blancos con texto azul (Cabeceras)
         shape_payload = {
             "data": {
                 "shape": "rectangle",
-                "content": f"<p><strong>{titulos[col_idx]}</strong></p>"
+                # <-- El texto va en tu azul corporativo #050038
+                "content": f"<p><span style='color: {color_azul}; font-family: sans-serif; font-size: 24px;'><strong>{titulos[col_idx]}</strong></span></p>"
             },
             "style": {
-                "fillColor": colores_cabecera[col_idx],
+                "fillColor": color_casilla,      # <-- La casilla en blanco
+                "borderColor": color_azul,       # <-- Borde azul para enmarcar
+                "borderStyle": "normal",
                 "textAlign": "center"
             },
             "position": {"x": col_x, "y": -(alto_frame / 2) + 100},
-            "geometry": {"width": ancho_columna - 20, "height": 80},
+            "geometry": {"width": ancho_columna - 40, "height": 80},
             "parent": {"id": frame_id}
         }
         requests.post(f"{board_url}/{board_id}/shapes", json=shape_payload, headers=headers)
@@ -184,13 +194,13 @@ def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboar
         todas_las_imagenes = resultados_visuales.get(cat, {}).get('arena', []) + resultados_visuales.get(cat, {}).get('web', [])
         
         for row_idx, img_url in enumerate(todas_las_imagenes):
-            img_y = -(alto_frame / 2) + 200 + (row_idx * (alto_imagen + margen)) + (alto_imagen / 2)
+            img_y = -(alto_frame / 2) + 220 + (row_idx * (alto_imagen + margen)) + (alto_imagen / 2)
             
             img_payload = {
                 "data": {"url": img_url},
                 "parent": {"id": frame_id},
                 "position": {"x": col_x, "y": img_y},
-                "geometry": {"width": ancho_columna - margen}
+                "geometry": {"width": ancho_columna - 40} # Dejamos 40px de respiro (márgenes)
             }
             requests.post(f"{board_url}/{board_id}/images", json=img_payload, headers=headers)
             
