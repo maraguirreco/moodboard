@@ -116,6 +116,59 @@ def fetch_ddg_images(query, limit=4):
     except Exception as e:
         print(f"Error en DuckDuckGo: {e}")
     return images
+def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboard"):
+    """Crea un tablero en Miro, añade frames y acomoda las imágenes."""
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {miro_token}"
+    }
+    
+    # 1. Crear Tablero
+    board_url = "https://api.miro.com/v2/boards"
+    board_payload = {"name": f"Moodboard: {nombre_proyecto}"}
+    board_res = requests.post(board_url, json=board_payload, headers=headers).json()
+    board_id = board_res.get('id')
+    board_view_url = board_res.get('viewLink')
+    
+    if not board_id:
+        return None, f"Error creando el tablero: {board_res}"
+        
+    # 2. Iterar sobre las categorías y crear Frames e Imágenes
+    categorias = list(resultados_visuales.keys())
+    for idx, cat in enumerate(categorias):
+        # Posicionamiento horizontal de los frames (cada uno a 1200px del anterior)
+        frame_x = idx * 1200
+        frame_payload = {
+            "data": {"title": cat.upper()},
+            "position": {"x": frame_x, "y": 0},
+            "geometry": {"width": 1000, "height": 1000}
+        }
+        frame_res = requests.post(f"{board_url}/{board_id}/frames", json=frame_payload, headers=headers).json()
+        frame_id = frame_res.get('id')
+        
+        # Juntar todas las imágenes de esta categoría
+        todas_las_imagenes = resultados_visuales[cat]['arena'] + resultados_visuales[cat]['web']
+        
+        # Subir las imágenes al frame usando una cuadrícula (grid) matemática simple
+        for i, img_url in enumerate(todas_las_imagenes[:8]): # Máximo 8 imágenes por frame
+            col = i % 2       # 0, 1, 0, 1...
+            row = i // 2      # 0, 0, 1, 1...
+            
+            # Posición relativa al centro del Frame padre
+            img_x = (col * 400) - 200
+            img_y = (row * 400) - 200
+            
+            img_payload = {
+                "data": {"url": img_url},
+                "parent": {"id": frame_id},
+                "position": {"x": img_x, "y": img_y},
+                "geometry": {"width": 350}
+            }
+            # Enviamos la imagen a Miro
+            requests.post(f"{board_url}/{board_id}/images", json=img_payload, headers=headers)
+            
+    return board_view_url, None
 # ==========================================
 # INTERFAZ DE USUARIO (UI)
 # ==========================================
@@ -125,8 +178,9 @@ st.markdown("Sube tu PDF de conceptualización y deja que la IA extraiga las pau
 # --- BARRA LATERAL: API KEY ---
 with st.sidebar:
     st.header("Configuración")
-    gemini_api_key = st.text_input("Ingresa tu Gemini API Key:", type="password")
-    st.markdown("[Consigue tu API Key gratis aquí](https://aistudio.google.com/app/apikey)")
+    gemini_api_key = st.text_input("API Key de OpenRouter:", type="password")
+    miro_token = st.text_input("Access Token de Miro:", type="password")
+    st.markdown("🔑 [Consigue tu Token de Miro aquí](https://miro.com/app/dashboard/)")
 
 # --- CARGADOR DE PDF ---
 uploaded_file = st.file_uploader("Subir PDF de conceptualización", type="pdf")
@@ -230,7 +284,7 @@ if st.button("🚀 Generar y Buscar Moodboards"):
             
             st.success("¡Moodboards recopilados con éxito!")
             
-            # --- RENDERIZADO VISUAL ---
+            # --- RENDERIZADO VISUAL EN PANTALLA ---
             st.write("## 🎨 Resultados del Moodboard")
             
             for categoria, imagenes in resultados_visuales.items():
@@ -250,3 +304,20 @@ if st.button("🚀 Generar y Buscar Moodboards"):
                         with cols[idx]:
                             st.image(img_url, use_column_width=True)
                 st.divider()
+
+            # --- VOLCADO A MIRO ---
+            st.write("## 🚀 Exportación a Miro")
+            
+            if not miro_token:
+                st.warning("⚠️ Agrega tu Access Token de Miro en la barra lateral para crear el tablero automáticamente.")
+            else:
+                with st.spinner("Conectando con Miro y organizando las imágenes en Frames... (Esto puede tomar un minuto)"):
+                    nombre_tablero = st.session_state.form_data.get('industria', 'Nueva Marca')
+                    miro_url, error = export_to_miro(resultados_visuales, miro_token, nombre_proyecto=nombre_tablero)
+                    
+                    if error:
+                        st.error(error)
+                    else:
+                        st.success("¡Tablero creado con éxito!")
+                        st.markdown(f"### 🎉 [Haz clic aquí para abrir tu Moodboard en Miro]({miro_url})")
+                        st.balloons()
