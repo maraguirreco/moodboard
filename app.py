@@ -1,6 +1,6 @@
 import streamlit as st
 from openai import OpenAI
-import PyPDF2
+import fitz
 import json
 import requests
 from duckduckgo_search import DDGS
@@ -25,11 +25,12 @@ if "form_data" not in st.session_state:
 # FUNCIONES DE PROCESAMIENTO
 # ==========================================
 def extract_text_from_pdf(pdf_file):
-    """Extrae el texto de un archivo PDF subido."""
-    reader = PyPDF2.PdfReader(pdf_file)
+    """Extrae el texto de un archivo PDF subido usando PyMuPDF (ideal para Miro/Figma)."""
+    # PyMuPDF necesita leer el archivo como un flujo de bytes (stream)
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
+    for page in doc:
+        text += page.get_text() + "\n"
     return text
 
 def analyze_with_ai(text, api_key):
