@@ -75,7 +75,47 @@ def analyze_with_gemini(text, api_key):
     # Limpiamos la respuesta en caso de que la IA incluya bloques de código ```json
     raw_json = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
-
+def generate_search_queries(form_data, api_key):
+    """Toma los datos del formulario y genera queries de búsqueda en inglés estructurados."""
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # Preparamos la lista de sitios de alta calidad para el operador site:
+    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    prompt = f"""
+    Eres un curador de diseño gráfico experto. Toma los siguientes parámetros en español de una identidad de marca y tradúcelos a palabras clave (queries) altamente específicas en INGLÉS para buscar referentes visuales.
+    
+    Contexto de la marca:
+    - Industria: {form_data.get('industria')}
+    - Personalidad: {form_data.get('personalidad')}
+    - Anti-referentes: {form_data.get('anti_referentes')} (Conviértelos en palabras clave negativas en inglés, usando un guión antes de la palabra, ej: -neon -3d -corporate)
+    
+    Parámetros por categoría:
+    - Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
+    - Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
+    - Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
+    - Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
+    - Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
+    
+    Instrucciones:
+    Para cada una de las 5 categorías (logo, colores, tipografia, formas, imagenes), genera 2 tipos de queries:
+    1. 'arena_query': Palabras clave estéticas en inglés separadas por espacio.
+    2. 'web_query': Las mismas palabras clave, pero agregando al final los anti-referentes (ej: -cheap) y esta cadena exacta de sitios: {sites}
+    
+    Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+    {{
+        "logo": {{"arena_query": "string", "web_query": "string"}},
+        "colores": {{"arena_query": "string", "web_query": "string"}},
+        "tipografia": {{"arena_query": "string", "web_query": "string"}},
+        "formas": {{"arena_query": "string", "web_query": "string"}},
+        "imagenes": {{"arena_query": "string", "web_query": "string"}}
+    }}
+    """
+    
+    response = model.generate_content(prompt)
+    raw_json = response.text.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw_json)
 # ==========================================
 # INTERFAZ DE USUARIO (UI)
 # ==========================================
@@ -162,9 +202,30 @@ with tab5:
                               default=[v for v in d.get("img_vibe", []) if v in ["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"]])
     img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""))
 
-# --- BOTÓN FINAL (Para la Fase 2) ---
+# --- BOTÓN FINAL: GENERAR QUERIES ---
 st.divider()
-if st.button("🚀 Generar Moodboards (Siguiente Fase)"):
-    st.success("¡Información recolectada con éxito! Aquí es donde la app traducirá estos campos a queries para buscar en Are.na y otras bases de datos.")
-    # Aquí puedes ver cómo quedan los datos listos para ser enviados al buscador
-    # st.json(st.session_state.form_data)
+if st.button("🚀 Generar Moodboards (Fase 2)"):
+    if not gemini_api_key:
+        st.error("Por favor ingresa tu API Key de Gemini en la barra lateral.")
+    else:
+        with st.spinner("🧠 Traduciendo tu concepto a código de búsqueda profesional..."):
+            try:
+                # 1. Llamamos a la función para generar los queries
+                queries = generate_search_queries(st.session_state.form_data, gemini_api_key)
+                
+                # 2. Mostramos los resultados en la interfaz para que los veas
+                st.success("¡Queries generados con éxito!")
+                
+                st.write("### 🔍 Así buscará la app en internet:")
+                
+                # Usamos expanders de Streamlit para mostrarlo ordenado
+                for categoria, datos in queries.items():
+                    with st.expander(f"Categoria: {categoria.upper()}"):
+                        st.markdown(f"**🟢 Búsqueda en Are.na:** `{datos['arena_query']}`")
+                        st.markdown(f"**🌐 Búsqueda en Web (Nicho):** `{datos['web_query']}`")
+                
+                # Guardamos los queries en el estado para la siguiente fase
+                st.session_state.queries = queries
+                
+            except Exception as e:
+                st.error(f"Hubo un error al generar los queries: {e}")
