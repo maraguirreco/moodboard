@@ -178,9 +178,20 @@ st.markdown("Sube tu PDF de conceptualización y deja que la IA extraiga las pau
 # --- BARRA LATERAL: API KEY ---
 with st.sidebar:
     st.header("Configuración")
-    gemini_api_key = st.text_input("API Key de OpenRouter:", type="password")
-    miro_token = st.text_input("Access Token de Miro:", type="password")
-    st.markdown("🔑 [Consigue tu Token de Miro aquí](https://miro.com/app/dashboard/)")
+    
+    # Intenta leer las claves secretas del servidor. Si no existen, muestra el campo de texto.
+    gemini_api_key = st.secrets.get("OPENROUTER_API_KEY", "")
+    if not gemini_api_key:
+        gemini_api_key = st.text_input("API Key de OpenRouter:", type="password")
+    else:
+        st.success("✅ API de OpenRouter conectada")
+        
+    miro_token = st.secrets.get("MIRO_TOKEN", "")
+    if not miro_token:
+        miro_token = st.text_input("Access Token de Miro:", type="password")
+        st.markdown("🔑 [Consigue tu Token de Miro aquí](https://miro.com/app/dashboard/)")
+    else:
+        st.success("✅ API de Miro conectada")
 
 # --- CARGADOR DE PDF ---
 uploaded_file = st.file_uploader("Subir PDF de conceptualización", type="pdf")
