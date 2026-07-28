@@ -234,17 +234,25 @@ uploaded_file = st.file_uploader("Subir PDF de conceptualización", type="pdf")
 
 if uploaded_file is not None and st.button("✨ Analizar PDF con IA"):
     if not gemini_api_key:
-        st.error("Por favor ingresa tu API Key de Gemini en la barra lateral.")
+        st.error("Por favor ingresa tu API Key en la barra lateral.")
     else:
         with st.spinner("Analizando el documento y extrayendo pautas visuales..."):
             try:
                 pdf_text = extract_text_from_pdf(uploaded_file)
+                
+                # 1. Validamos si el PDF tiene texto real o está en curvas
+                if len(pdf_text.strip()) < 15:
+                    st.error("⚠️ ¡Alerta! Python no pudo encontrar texto en este PDF. Es probable que sea una imagen o tenga las tipografías convertidas a curvas. Sube un PDF con texto seleccionable.")
+                    st.stop()
+                    
                 extracted_data = analyze_with_ai(pdf_text, gemini_api_key)
                 
-                # Actualizamos el estado de la sesión con los datos de la IA
-                # Esto auto-completará los campos abajo
+                # Actualizamos los datos en la memoria de la app
                 st.session_state.form_data.update(extracted_data)
-                st.success("¡Análisis completado! Revisa y ajusta los campos abajo.")
+                
+                # 2. Forzamos la recarga visual de Streamlit para llenar las casillas
+                st.rerun()
+                
             except Exception as e:
                 st.error(f"Hubo un error al procesar: {e}")
 
