@@ -337,33 +337,34 @@ d = st.session_state.form_data
 
 with tab1:
     st.subheader("LOGOTIPO (Identidad y Símbolo)")
-    logo_estilo = st.text_input("Estilo del Símbolo", value=d.get("logo_estilo", ""), placeholder="Ej: Minimalista, orgánico, line art, isotipo geométrico...")
-    logo_referencias = st.text_input("Marcas o Sectores de Referencia", value=d.get("logo_referencias", ""), placeholder="Ej: Símbolos de conexión, escudos, tecnología limpia...")
+    st.session_state.form_data['logo_estilo'] = st.text_input("Estilo del Símbolo", value=st.session_state.form_data.get("logo_estilo", ""), placeholder="Ej: Minimalista, orgánico, line art, isotipo geométrico...")
+    st.session_state.form_data['logo_referencias'] = st.text_input("Marcas o Sectores de Referencia", value=st.session_state.form_data.get("logo_referencias", ""), placeholder="Ej: Símbolos de conexión, escudos, tecnología limpia...")
 
 with tab2:
     st.subheader("COLORES (Paleta & Atmósfera de Luz)")
-    color_muestras = st.text_input("Colores Clave & Acentos", value=d.get("color_muestras", ""), placeholder="Ej: Verde suave, azul claro, tonos tierra...")
-    color_temperatura = st.text_input("Temperatura & Saturación", value=d.get("color_temperatura", ""), placeholder="Ej: Cálido y acogedor, frío y corporativo, desaturado...")
-    color_luz = st.text_input("Dirección de Iluminación", value=d.get("color_luz", ""), placeholder="Ej: Luminoso y natural, claroscuro dramático...")
+    st.session_state.form_data['color_muestras'] = st.text_input("Colores Clave & Acentos", value=st.session_state.form_data.get("color_muestras", ""), placeholder="Ej: Verde suave, azul claro, tonos tierra...")
+    st.session_state.form_data['color_temperatura'] = st.text_input("Temperatura & Saturación", value=st.session_state.form_data.get("color_temperatura", ""), placeholder="Ej: Cálido y acogedor, frío y corporativo, desaturado...")
+    st.session_state.form_data['color_luz'] = st.text_input("Dirección de Iluminación", value=st.session_state.form_data.get("color_luz", ""), placeholder="Ej: Luminoso y natural, claroscuro dramático...")
 
 with tab3:
     st.subheader("TIPO (Estilo Tipográfico)")
-    tipo_clasificacion = st.text_input("Clasificación Tipográfica", value=d.get("tipo_clasificacion", ""), placeholder="Ej: Serif, sans serif, geométrica, display...")
-    tipo_personalidad = st.text_input("Personalidad", value=d.get("tipo_personalidad", ""), placeholder="Ej: Ligero y accesible, elegante, técnico, ruidoso...")
-    tipo_composicion = st.text_input("Composición / Layout Tipográfico", value=d.get("tipo_composicion", ""), placeholder="Ej: Editorial limpio, tipografía suiza, brutalista, big typography...")
+    st.session_state.form_data['tipo_clasificacion'] = st.text_input("Clasificación Tipográfica", value=st.session_state.form_data.get("tipo_clasificacion", ""), placeholder="Ej: Serif, sans serif, geométrica, display...")
+    st.session_state.form_data['tipo_personalidad'] = st.text_input("Personalidad", value=st.session_state.form_data.get("tipo_personalidad", ""), placeholder="Ej: Ligero y accesible, elegante, técnico, ruidoso...")
+    st.session_state.form_data['tipo_composicion'] = st.text_input("Composición / Layout Tipográfico", value=st.session_state.form_data.get("tipo_composicion", ""), placeholder="Ej: Editorial limpio, tipografía suiza, brutalista, big typography...")
 
 with tab4:
     st.subheader("FORMAS (Recursos Gráficos)")
-    formas_estructura = st.text_input("La Forma y la Estructura", value=d.get("formas_estructura", ""), placeholder="Ej: Organic shapes, fluid forms, abstract geometry, smooth curves...")
-    formas_estilo = st.text_input("Estilo de Referencia o 'Vibe'", value=d.get("formas_estilo", ""), placeholder="Ej: Aesthetic, clean layout, modern branding, flat design...")
-    formas_adicional = st.text_input("Información Adicional", value=d.get("formas_adicional", ""), placeholder="Ej: Sellos, stickers, texturas granuladas, líneas finas...")
+    st.session_state.form_data['formas_estructura'] = st.text_input("La Forma y la Estructura", value=st.session_state.form_data.get("formas_estructura", ""), placeholder="Ej: Organic shapes, fluid forms, abstract geometry, smooth curves...")
+    st.session_state.form_data['formas_estilo'] = st.text_input("Estilo de Referencia o 'Vibe'", value=st.session_state.form_data.get("formas_estilo", ""), placeholder="Ej: Aesthetic, clean layout, modern branding, flat design...")
+    st.session_state.form_data['formas_adicional'] = st.text_input("Información Adicional", value=st.session_state.form_data.get("formas_adicional", ""), placeholder="Ej: Sellos, stickers, texturas granuladas, líneas finas...")
 
 with tab5:
     st.subheader("IMÁGENES")
-    img_sujetos = st.text_input("Sujetos u Objetos Clave", value=d.get("img_sujetos", ""), placeholder="Ej: Viajeros y culturas diversas, objetos cotidianos...")
-    img_metafora = st.text_input("Metáfora Visual / Concepto", value=d.get("img_metafora", ""), placeholder="Ej: Puentes y conexiones, crecimiento, transparencia...")
-    img_vibe = st.text_input("Vibe / Atmósfera Emocional", value=d.get("img_vibe", ""), placeholder="Ej: Introspectivo y reflexivo, dinámico e innovador, nostálgico...")
-    img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""), placeholder="Ej: Amplio incluyendo paisajes, primer plano detalle, macro...")
+    st.session_state.form_data['img_sujetos'] = st.text_input("Sujetos u Objetos Clave", value=st.session_state.form_data.get("img_sujetos", ""), placeholder="Ej: Viajeros y culturas diversas, objetos cotidianos...")
+    st.session_state.form_data['img_metafora'] = st.text_input("Metáfora Visual / Concepto", value=st.session_state.form_data.get("img_metafora", ""), placeholder="Ej: Puentes y conexiones, crecimiento, transparencia...")
+    st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera Emocional", value=st.session_state.form_data.get("img_vibe", ""), placeholder="Ej: Introspectivo y reflexivo, dinámico e innovador, nostálgico...")
+    st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre Fotográfico Dominante", value=st.session_state.form_data.get("img_encuadre", ""), placeholder="Ej: Amplio incluyendo paisajes, primer plano detalle, macro...")
+    
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
 st.divider()
 if st.button("🚀 Generar y Buscar Moodboards"):
