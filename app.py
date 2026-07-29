@@ -89,18 +89,29 @@ def generate_search_queries(form_data, api_key):
     arq = safe_join(form_data.get('logo_arquetipo', []))
     
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')}
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales.
     
+    REGLA DE ORO: Los buscadores de diseño (Are.na, BrandArchive) odian los conceptos literales. 
+    IGNORA sujetos (viajeros, culturas), metáforas (puentes) o arquetipos de marketing (explorador, sabio).
+    EXTRAE ÚNICAMENTE el "vibe" estético (minimalista, orgánico, cálido, geométrico).
+    MÁXIMO 2 o 3 PALABRAS por búsqueda.
+    
+    Datos crudos:
     Logo: {form_data.get('logo_estilo')}, {arq}
     Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {tipo}, {form_data.get('tipo_peso')} (IMPORTANTE: Agrega siempre la palabra "typography")
-    Formas: {form_data.get('formas_bordes')}, {formas} (IMPORTANTE: Agrega siempre la palabra "pattern" o "graphic")
+    Tipografía: {tipo}, {form_data.get('tipo_peso')}
+    Formas: {form_data.get('formas_bordes')}, {formas}
     Imágenes: {form_data.get('img_sujetos')}, {vibe}
     
+    Ejemplos de cómo debes razonar:
+    - Si lees "Explorador, minimalista", busca solo: "minimalist logo"
+    - Si lees "Viajeros, cálido y acogedor", busca solo: "warm lifestyle photography"
+    - Si lees "Geométrica, Expresiva", elige solo una dominante: "geometric typography"
+    - Si lees "Sellos, fluidas", busca: "fluid graphic pattern" o "badge layout"
+    
     Para cada categoría genera:
-    1. 'arena_query': Palabras clave estéticas muy cortas (MÁXIMO 3 a 4 palabras. Sin anti-referentes).
-    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
+    1. 'arena_query': Las 2-3 palabras estéticas clave.
+    2. 'web_query': Las mismas palabras + la cadena: {sites}
     
     Responde ÚNICAMENTE en JSON con la estructura:
     {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
