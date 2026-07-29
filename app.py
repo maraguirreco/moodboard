@@ -72,22 +72,24 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries ultra-simples para no bloquear las librerías de los buscadores."""
+    """Genera queries regresando a la versión original funcional, con un parche para tipografía y formas."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
     
     prompt = f"""
-    Eres un curador de diseño. Genera palabras clave en INGLÉS para buscar referentes.
-    REGLA DE ORO: Los buscadores fallarán si usas más de 2 o 3 palabras. Sé EXTREMADAMENTE breve.
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
+    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
     
-    - Logo: 1 palabra de "{form_data.get('logo_estilo')}" + "logo" (Ej: "organic logo")
-    - Colores: 1 color predominante de "{form_data.get('color_muestras')}" + "palette" (Ej: "green palette")
-    - Tipografia: 1 palabra de "{form_data.get('tipo_clasificacion')}" + "typography" (Ej: "fluid typography")
-    - Formas: 1 palabra de "{form_data.get('formas_bordes')}" + "pattern" (Ej: "rounded pattern")
-    - Imagenes: 1 palabra de "{form_data.get('img_vibe')}" + "photography" (Ej: "serene photography")
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
+    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
     
-    Para cada categoría genera:
-    1. 'arena_query': Solo las 2 o 3 palabras clave.
-    2. 'web_query': Las mismas palabras clave + "branding". (NINGÚN operador extra, nada de 'site:').
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')} (IMPORTANTE: Agrega siempre la palabra "typography" o "typeface" al final)
+    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')} (IMPORTANTE: Agrega siempre la palabra "pattern" o "graphic elements" al final)
+    
+    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
+    1. 'arena_query': Palabras clave estéticas separadas por espacio.
+    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
     
     Responde ÚNICAMENTE en JSON con la estructura:
     {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
