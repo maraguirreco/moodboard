@@ -72,25 +72,26 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries en inglés usando OpenRouter con palabras clave de seguridad (Términos Ancla)."""
+    """Genera queries en inglés balanceando conceptos estéticos y términos ancla, sin saturar los buscadores."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    # Reducimos los sitios web a los 2 mejores para no bloquear a DuckDuckGo por exceso de texto
+    sites = "site:brandarchive.xyz OR site:thedieline.com"
     
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales. 
-    REGLA DE ORO: Mantén las búsquedas cortas (máximo 4-5 palabras) y agrega términos ancla para que los buscadores nunca fallen.
+    Eres un curador de diseño. Genera palabras clave en INGLÉS para buscar referentes.
+    REGLA DE ORO: Combina los parámetros del formulario con un término ancla visual. Sé muy breve (máximo 3-4 palabras).
     
-    - Para Logo usa: "logo", "brand identity"
-    - Para Colores usa: "color palette", "branding"
-    - Para Tipografia usa siempre: "typography", "type specimen" o "editorial layout" + el estilo ({form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')})
-    - Para Formas usa siempre: "brand pattern", "graphic elements" o "visual identity" + el estilo ({form_data.get('formas_bordes')}, {form_data.get('formas_elementos')})
-    - Para Imagenes usa: "photography", "art direction" + el estilo ({form_data.get('img_vibe')})
-    
-    Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    - Logo: Usa los conceptos de "{form_data.get('logo_estilo')}" y agrégale "logo" (Ej: "minimalist organic logo")
+    - Colores: Usa "{form_data.get('color_muestras')}" y agrégale "color palette" 
+    - Tipografia: Usa "{form_data.get('tipo_clasificacion')}" y agrégale "typography" o "layout"
+    - Formas: Usa "{form_data.get('formas_bordes')}" y agrégale "brand pattern" o "graphic elements"
+    - Imagenes: Usa "{form_data.get('img_vibe')}" y agrégale "photography" o "art direction"
     
     Para cada categoría genera:
-    1. 'arena_query': Palabras clave estéticas muy cortas (ej. "organic typography layout").
-    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
+    1. 'arena_query': Las palabras clave puras (ej. "organic minimalist logo").
+    2. 'web_query': Las mismas palabras clave puras + la cadena: {sites}
+    (NOTA: Omite los anti-referentes esta vez para no bloquear los motores de búsqueda).
     
     Responde ÚNICAMENTE en JSON con la estructura:
     {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
