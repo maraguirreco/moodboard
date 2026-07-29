@@ -174,6 +174,55 @@ def generate_search_queries(form_data, api_key):
         queries[cat] = f"{base_kw} {sufijo}"
         
     return queries
+
+def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Moodboard de Marca"):
+    """Crea un tablero en Miro y exporta las imágenes recopiladas."""
+    if not miro_token:
+        return None, "No se proporcionó el token de API de Miro."
+        
+    headers = {
+        "Authorization": f"Bearer {miro_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # 1. Crear el tablero
+    url_board = "https://api.miro.com/v2/boards"
+    board_data = {
+        "name": nombre_proyecto,
+        "description": "Tablero de referencias visuales generado por la IA"
+    }
+    
+    try:
+        res = requests.post(url_board, json=board_data, headers=headers)
+        if res.status_code not in [200, 201]:
+            return None, f"Error al crear tablero en Miro: {res.text}"
+            
+        board_id = res.json().get("id")
+        board_url = res.json().get("viewLink", f"https://miro.com/app/board/{board_id}/")
+        
+        # 2. Subir las imágenes al tablero organizado por filas
+        url_image = f"https://api.miro.com/v2/boards/{board_id}/images"
+        
+        y_offset = 0
+        for categoria, fuentes in resultados_visuales.items():
+            x_offset = 0
+            todas_imgs = fuentes.get('arena', []) + fuentes.get('web', [])
+            
+            for img_url in todas_imgs:
+                payload = {
+                    "data": {"url": img_url},
+                    "position": {"x": x_offset, "y": y_offset},
+                    "geometry": {"width": 300}
+                }
+                requests.post(url_image, json=payload, headers=headers)
+                x_offset += 350 # Desplazar a la derecha
+                
+            y_offset += 400 # Desplazar hacia abajo para la siguiente categoría
+            
+        return board_url, None
+        
+    except Exception as e:
+        return None, f"Excepción durante la exportación a Miro: {e}"
 # ==========================================
 # INTERFAZ DE USUARIO (UI)
 # ==========================================
