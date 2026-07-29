@@ -221,14 +221,14 @@ if uploaded_file is not None and st.button("✨ Analizar PDF con IA Visual"):
     else:
         with st.spinner("👀 La IA está 'leyendo' visualmente tu documento de Miro..."):
             try:
+                # Extraemos los datos visualmente
                 extracted_data = analyze_pdf_with_vision(uploaded_file, gemini_api_key)
                 
-                # --- MODO DIAGNÓSTICO ---
-                st.success("¡Lectura completada! Mira lo que la IA encontró:")
-                st.json(extracted_data) # Esto imprimirá la respuesta cruda en pantalla
-                
+                # Inyectamos los datos en la memoria de la aplicación
                 st.session_state.form_data.update(extracted_data)
-                # st.rerun()  <-- Comentamos esta línea temporalmente para que no parpadee
+                
+                # Forzamos a que la pantalla parpadee y rellene todas las casillas
+                st.rerun()
                 
             except Exception as e:
                 st.error(f"Hubo un error al procesar el archivo: {e}")
