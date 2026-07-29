@@ -69,29 +69,26 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     return json.loads(raw_json)
 
 def generate_search_queries(form_data, api_key):
-    """Genera palabras clave puras y busca en toda la web enfocándose en sitios de diseño."""
+    """Genera palabras clave ultra simples para no activar las alarmas de los buscadores."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    
-    # 1. ELIMINAMOS los comandos "site:" que bloqueaban la búsqueda. 
-    # En su lugar, usamos palabras clave de calidad para guiar al buscador.
-    quality_keywords = "branding design behance"
     
     def clean_val(key):
         val = form_data.get(key, "")
         return str(val).strip() if val else ""
     
+    # Obligamos a la IA a usar MÁXIMO 1 o 2 palabras, sin excepciones.
     prompt = f"""
-    Eres un director de arte. Lee estos datos y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
-    PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual, inspirador). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
+    Eres un director de arte. Devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA. 
+    NO uses sujetos ni emociones. SOLO términos visuales (minimal, organic, bold, warm, fluid).
     
     Datos:
-    Logo: {clean_val('logo_estilo')} {clean_val('logo_referencias')}
-    Colores: {clean_val('color_muestras')} {clean_val('color_temperatura')}
-    Tipografía: {clean_val('tipo_clasificacion')} {clean_val('tipo_composicion')}
-    Formas: {clean_val('formas_estructura')} {clean_val('formas_estilo')}
-    Imágenes: {clean_val('img_vibe')} {clean_val('img_encuadre')}
+    Logo: {clean_val('logo_estilo')}
+    Colores: {clean_val('color_muestras')}
+    Tipografía: {clean_val('tipo_clasificacion')}
+    Formas: {clean_val('formas_estructura')}
+    Imágenes: {clean_val('img_vibe')}
     
-    Responde ÚNICAMENTE en JSON con esta estructura exacta (solo adjetivos, máximo 2 palabras por campo):
+    Responde ÚNICAMENTE en JSON:
     {{"logo": "str", "colores": "str", "tipografia": "str", "formas": "str", "imagenes": "str"}}
     """
     
@@ -118,14 +115,13 @@ def generate_search_queries(form_data, api_key):
         base_kw = keywords.get(cat, "")
         if not isinstance(base_kw, str):
             base_kw = str(base_kw)
-        base_kw = base_kw.strip()
+        base_kw = " ".join(base_kw.split()[:2]) # Forzamos a que sean máximo 2 palabras
         if not base_kw:  
             base_kw = "design"
             
-        # Armamos los queries limpios
         arena_q = f"{base_kw} {sufijo}"
-        # Para la web, añadimos "branding design behance" para forzar alta calidad sin usar comandos restrictivos
-        web_q = f"{base_kw} {sufijo} {quality_keywords}"
+        # Simplificamos la búsqueda web al máximo ("adjetivo + sufijo + design")
+        web_q = f"{base_kw} {sufijo} design"
         
         queries[cat] = {
             "arena_query": arena_q,
@@ -154,14 +150,17 @@ def fetch_arena_images(query, limit=4):
     return images
 
 def fetch_ddg_images(query, limit=4):
-    """Busca imágenes en la web (usando tus sitios nicho) vía DuckDuckGo."""
+    """Busca imágenes en la web manteniendo una sesión estable para evadir el bloqueo anti-bot."""
     images = []
     try:
-        results = DDGS().images(query, max_results=limit)
-        for r in results:
-            images.append(r['image'])
+        # Usar 'with' mantiene la sesión abierta como si fuera una pestaña real del navegador
+        with DDGS() as ddgs:
+            # Envolvemos en list() para consumir el generador antes de que se cierre la sesión
+            results = list(ddgs.images(query, max_results=limit))
+            for r in results:
+                images.append(r['image'])
     except Exception as e:
-        print(f"Error en DuckDuckGo: {e}")
+        print(f"Error en DuckDuckGo con '{query}': {e}")
     return images
 def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboard"):
     """Crea un tablero en Miro con formato de Tabla dinámica estructurada y colores corporativos."""
