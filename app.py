@@ -234,50 +234,59 @@ if uploaded_file is not None and st.button("✨ Analizar PDF con IA Visual"):
                 st.error(f"Hubo un error al procesar el archivo: {e}")
 
 # --- FORMULARIO DE PAUTAS VISUALES ---
-st.header("1. Contexto Estratégico")
-col1, col2 = st.columns(2)
-with col1:
-    st.session_state.form_data['industria'] = st.text_input("Industria / Categoría", value=st.session_state.form_data.get('industria', ''))
-    st.session_state.form_data['personalidad'] = st.text_input("Personalidad de Marca", value=st.session_state.form_data.get('personalidad', ''))
-with col2:
-    st.session_state.form_data['anti_referentes'] = st.text_input("Anti-referentes (Lo que NO queremos)", value=st.session_state.form_data.get('anti_referentes', ''))
-st.session_state.form_data['resumen'] = st.text_area("Resumen del Concepto", value=st.session_state.form_data.get('resumen', ''))
+st.write("### 🗂️ Pautas Visuales")
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "1. Contexto", 
+    "2. Logotipo", 
+    "3. Color y Tipo", 
+    "4. Formas", 
+    "5. Fotografía"
+])
 
-st.header("2. Diseño de Logotipo")
-col3, col4 = st.columns(2)
-with col3:
-    st.session_state.form_data['logo_estilo'] = st.text_input("Estilo Visual del Logo", value=st.session_state.form_data.get('logo_estilo', ''))
-    st.session_state.form_data['logo_arquetipo'] = st.text_input("Arquetipo de Marca", value=st.session_state.form_data.get('logo_arquetipo', ''))
-with col4:
-    st.session_state.form_data['logo_referencias'] = st.text_input("Referencias / Símbolos", value=st.session_state.form_data.get('logo_referencias', ''))
+with tab1:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.session_state.form_data['industria'] = st.text_input("Industria / Categoría", value=st.session_state.form_data.get('industria', ''))
+        st.session_state.form_data['personalidad'] = st.text_input("Personalidad de Marca", value=st.session_state.form_data.get('personalidad', ''))
+    with col2:
+        st.session_state.form_data['anti_referentes'] = st.text_input("Anti-referentes (Lo que NO queremos)", value=st.session_state.form_data.get('anti_referentes', ''))
+    st.session_state.form_data['resumen'] = st.text_area("Resumen del Concepto", value=st.session_state.form_data.get('resumen', ''))
 
-st.header("3. Color y Tipografía")
-col5, col6 = st.columns(2)
-with col5:
-    st.session_state.form_data['color_muestras'] = st.text_input("Muestras de Color", value=st.session_state.form_data.get('color_muestras', ''))
-    st.session_state.form_data['color_temperatura'] = st.text_input("Temperatura", value=st.session_state.form_data.get('color_temperatura', ''))
-    st.session_state.form_data['color_luz'] = st.text_input("Contraste / Luz", value=st.session_state.form_data.get('color_luz', ''))
-with col6:
-    st.session_state.form_data['tipo_clasificacion'] = st.text_input("Clasificación Tipográfica", value=st.session_state.form_data.get('tipo_clasificacion', ''))
-    st.session_state.form_data['tipo_peso'] = st.text_input("Peso / Grosores", value=st.session_state.form_data.get('tipo_peso', ''))
-    st.session_state.form_data['tipo_muestra'] = st.text_input("Muestra de Uso", value=st.session_state.form_data.get('tipo_muestra', ''))
+with tab2:
+    col3, col4 = st.columns(2)
+    with col3:
+        st.session_state.form_data['logo_estilo'] = st.text_input("Estilo Visual del Logo", value=st.session_state.form_data.get('logo_estilo', ''))
+        st.session_state.form_data['logo_arquetipo'] = st.text_input("Arquetipo de Marca", value=st.session_state.form_data.get('logo_arquetipo', ''))
+    with col4:
+        st.session_state.form_data['logo_referencias'] = st.text_input("Referencias / Símbolos", value=st.session_state.form_data.get('logo_referencias', ''))
 
-st.header("4. Formas y Gráficos")
-col7, col8 = st.columns(2)
-with col7:
-    st.session_state.form_data['formas_bordes'] = st.text_input("Tratamiento de Bordes", value=st.session_state.form_data.get('formas_bordes', ''))
-    st.session_state.form_data['formas_elementos'] = st.text_input("Elementos Gráficos", value=st.session_state.form_data.get('formas_elementos', ''))
-with col8:
-    st.session_state.form_data['formas_layout'] = st.text_input("Estructura / Layout", value=st.session_state.form_data.get('formas_layout', ''))
+with tab3:
+    col5, col6 = st.columns(2)
+    with col5:
+        st.session_state.form_data['color_muestras'] = st.text_input("Muestras de Color", value=st.session_state.form_data.get('color_muestras', ''))
+        st.session_state.form_data['color_temperatura'] = st.text_input("Temperatura", value=st.session_state.form_data.get('color_temperatura', ''))
+        st.session_state.form_data['color_luz'] = st.text_input("Contraste / Luz", value=st.session_state.form_data.get('color_luz', ''))
+    with col6:
+        st.session_state.form_data['tipo_clasificacion'] = st.text_input("Clasificación Tipográfica", value=st.session_state.form_data.get('tipo_clasificacion', ''))
+        st.session_state.form_data['tipo_peso'] = st.text_input("Peso / Grosores", value=st.session_state.form_data.get('tipo_peso', ''))
+        st.session_state.form_data['tipo_muestra'] = st.text_input("Muestra de Uso", value=st.session_state.form_data.get('tipo_muestra', ''))
 
-st.header("5. Dirección Fotográfica")
-col9, col10 = st.columns(2)
-with col9:
-    st.session_state.form_data['img_sujetos'] = st.text_input("Sujetos / Elementos", value=st.session_state.form_data.get('img_sujetos', ''))
-    st.session_state.form_data['img_metafora'] = st.text_input("Metáfora Visual", value=st.session_state.form_data.get('img_metafora', ''))
-with col10:
-    st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera", value=st.session_state.form_data.get('img_vibe', ''))
-    st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre / Composición", value=st.session_state.form_data.get('img_encuadre', ''))
+with tab4:
+    col7, col8 = st.columns(2)
+    with col7:
+        st.session_state.form_data['formas_bordes'] = st.text_input("Tratamiento de Bordes", value=st.session_state.form_data.get('formas_bordes', ''))
+        st.session_state.form_data['formas_elementos'] = st.text_input("Elementos Gráficos", value=st.session_state.form_data.get('formas_elementos', ''))
+    with col8:
+        st.session_state.form_data['formas_layout'] = st.text_input("Estructura / Layout", value=st.session_state.form_data.get('formas_layout', ''))
+
+with tab5:
+    col9, col10 = st.columns(2)
+    with col9:
+        st.session_state.form_data['img_sujetos'] = st.text_input("Sujetos / Elementos", value=st.session_state.form_data.get('img_sujetos', ''))
+        st.session_state.form_data['img_metafora'] = st.text_input("Metáfora Visual", value=st.session_state.form_data.get('img_metafora', ''))
+    with col10:
+        st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera", value=st.session_state.form_data.get('img_vibe', ''))
+        st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre / Composición", value=st.session_state.form_data.get('img_encuadre', ''))
 
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
 st.divider()
