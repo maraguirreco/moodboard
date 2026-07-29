@@ -36,8 +36,10 @@ def analyze_pdf_with_vision(pdf_file, api_key):
         {
             "type": "text", 
             "text": """
-            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca (puede incluir mapas mentales y diagramas).
-            Extrae los parámetros visuales solicitados. Si la imagen no menciona algo, déjalo en blanco (""). 
+            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca (mapas mentales, diagramas, textos sueltos).
+            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales a partir de los conceptos que leas. 
+            Ejemplo: Si lees "Turismo consciente", deduce que la industria es "Turismo". Si ves colores en la imagen, descríbelos.
+            No seas literal, interpreta el mood y la esencia del documento.
             
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
