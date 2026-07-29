@@ -30,7 +30,6 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro sin importar si está en curvas."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
-    # 1. Convertimos las páginas del PDF a imágenes (Máximo las 3 primeras páginas)
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     content_payload = [
         {
@@ -44,11 +43,11 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
                 "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
-                "logo_estilo": "string", "logo_arquetipo": ["array de strings"], "logo_referencias": "string",
+                "logo_estilo": "string", "logo_arquetipo": "string", "logo_referencias": "string",
                 "color_muestras": "string", "color_temperatura": "string", "color_luz": "string",
-                "tipo_clasificacion": ["array de strings"], "tipo_peso": "string", "tipo_muestra": "string",
-                "formas_bordes": "string", "formas_elementos": ["array de strings"], "formas_layout": "string",
-                "img_sujetos": "string", "img_metafora": "string", "img_vibe": ["array de strings"], "img_encuadre": "string"
+                "tipo_clasificacion": "string", "tipo_peso": "string", "tipo_muestra": "string",
+                "formas_bordes": "string", "formas_elementos": "string", "formas_layout": "string",
+                "img_sujetos": "string", "img_metafora": "string", "img_vibe": "string", "img_encuadre": "string"
             }
             """
         }
@@ -63,7 +62,6 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             "image_url": {"url": f"data:image/png;base64,{base64_image}"}
         })
 
-    # 2. Enviamos las imágenes a la IA
     response = client.chat.completions.create(
         model="openai/gpt-4o-mini", 
         messages=[{"role": "user", "content": content_payload}]
@@ -71,6 +69,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
+
 
 def generate_search_queries(form_data, api_key):
     """Genera queries en inglés usando OpenRouter."""
