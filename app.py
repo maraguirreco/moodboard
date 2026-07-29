@@ -68,18 +68,72 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
 
+import urllib.parse
+
+def fetch_arena_images(query, limit=4):
+    """Fortalece la búsqueda en Are.na trayendo más bloques por consulta y filtrando solo imágenes."""
+    url = "https://api.are.na/v2/search/blocks"
+    images = []
+    try:
+        # Pedimos 25 bloques (en vez de 10) para tener un margen de selección de imágenes de alta calidad
+        response = requests.get(url, params={"q": query, "per": 25})
+        if response.status_code == 200:
+            data = response.json()
+            for block in data.get('blocks', []):
+                # Validamos que sea una imagen válida y tenga URL pública
+                if block.get('class') == 'Image' and 'image' in block and block['image'].get('display'):
+                    img_url = block['image']['display']['url']
+                    if img_url not in images:
+                        images.append(img_url)
+                    if len(images) >= limit:
+                        break
+    except Exception as e:
+        print(f"Error en Are.na: {e}")
+    return images
+
+def fetch_unsplash_images(query, api_key, limit=4):
+    """API Oficial de Unsplash para Fotografía, Color y Moodboards sin bloqueos."""
+    if not api_key:
+        return []
+    url = "https://api.unsplash.com/search/photos"
+    headers = {"Authorization": f"Client-ID {api_key}"}
+    params = {"query": query, "per_page": limit, "orientation": "squarish"}
+    images = []
+    try:
+        res = requests.get(url, headers=headers, params=params)
+        if res.status_code == 200:
+            for item in res.json().get('results', []):
+                images.append(item['urls']['regular'])
+    except Exception as e:
+        print(f"Error en Unsplash: {e}")
+    return images
+
+def fetch_brandnew_images(query, limit=4):
+    """Busca casos de estudio e identidades visuales específicamente en Brand New (UnderConsideration)."""
+    images = []
+    # Usamos la búsqueda de DuckDuckGo restringida EXCLUSIVAMENTE a Brand New
+    target_site = "site:underconsideration.com/brandnew"
+    full_query = f"{query} {target_site}"
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.images(full_query, max_results=limit))
+            for r in results:
+                images.append(r['image'])
+    except Exception as e:
+        print(f"Error en Brand New: {e}")
+    return images
+
 def generate_search_queries(form_data, api_key):
-    """Genera palabras clave ultra simples para no activar las alarmas de los buscadores."""
+    """Genera keywords estéticas y distribuye inteligentemente las búsquedas por especialidad."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     def clean_val(key):
         val = form_data.get(key, "")
         return str(val).strip() if val else ""
     
-    # Obligamos a la IA a usar MÁXIMO 1 o 2 palabras, sin excepciones.
     prompt = f"""
-    Eres un director de arte. Devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA. 
-    NO uses sujetos ni emociones. SOLO términos visuales (minimal, organic, bold, warm, fluid).
+    Eres un director de arte. Lee estos datos de diseño y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
+    PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
     
     Datos:
     Logo: {clean_val('logo_estilo')}
@@ -88,7 +142,7 @@ def generate_search_queries(form_data, api_key):
     Formas: {clean_val('formas_estructura')}
     Imágenes: {clean_val('img_vibe')}
     
-    Responde ÚNICAMENTE en JSON:
+    Responde ÚNICAMENTE en JSON con la estructura:
     {{"logo": "str", "colores": "str", "tipografia": "str", "formas": "str", "imagenes": "str"}}
     """
     
@@ -99,158 +153,27 @@ def generate_search_queries(form_data, api_key):
         )
         raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
         keywords = json.loads(raw_json)
-    except Exception as e:
+    except:
         keywords = {"logo": "minimal", "colores": "warm", "tipografia": "sans", "formas": "abstract", "imagenes": "editorial"}
         
     queries = {}
     sufijos = {
-        "logo": "logo",
-        "colores": "palette",
-        "tipografia": "typography",
-        "formas": "pattern",
+        "logo": "identity logo",
+        "colores": "color palette",
+        "tipografia": "typography layout",
+        "formas": "graphic pattern",
         "imagenes": "photography"
     }
     
     for cat, sufijo in sufijos.items():
         base_kw = keywords.get(cat, "")
-        if not isinstance(base_kw, str):
-            base_kw = str(base_kw)
-        base_kw = " ".join(base_kw.split()[:2]) # Forzamos a que sean máximo 2 palabras
-        if not base_kw:  
-            base_kw = "design"
+        if not isinstance(base_kw, str): base_kw = str(base_kw)
+        base_kw = " ".join(base_kw.split()[:2])
+        if not base_kw: base_kw = "design"
             
-        arena_q = f"{base_kw} {sufijo}"
-        # Simplificamos la búsqueda web al máximo ("adjetivo + sufijo + design")
-        web_q = f"{base_kw} {sufijo} design"
-        
-        queries[cat] = {
-            "arena_query": arena_q,
-            "web_query": web_q
-        }
+        queries[cat] = f"{base_kw} {sufijo}"
         
     return queries
-
-
-def fetch_arena_images(query, limit=4):
-    """Busca en la API pública de Are.na manejando correctamente los espacios en la URL."""
-    url = "https://api.are.na/v2/search/blocks"
-    images = []
-    try:
-        # Usar 'params' en requests hace que Python codifique los espacios automáticamente (ej: transforma " " en "%20")
-        response = requests.get(url, params={"q": query, "per": 10})
-        if response.status_code == 200:
-            data = response.json()
-            for block in data.get('blocks', []):
-                if block.get('class') == 'Image' and 'image' in block:
-                    images.append(block['image']['display']['url'])
-                    if len(images) >= limit:
-                        break
-    except Exception as e:
-        print(f"Error en Are.na: {e}")
-    return images
-
-def fetch_ddg_images(query, limit=4):
-    """Busca imágenes en la web manteniendo una sesión estable para evadir el bloqueo anti-bot."""
-    images = []
-    try:
-        # Usar 'with' mantiene la sesión abierta como si fuera una pestaña real del navegador
-        with DDGS() as ddgs:
-            # Envolvemos en list() para consumir el generador antes de que se cierre la sesión
-            results = list(ddgs.images(query, max_results=limit))
-            for r in results:
-                images.append(r['image'])
-    except Exception as e:
-        print(f"Error en DuckDuckGo con '{query}': {e}")
-    return images
-def export_to_miro(resultados_visuales, miro_token, nombre_proyecto="Mi Moodboard"):
-    """Crea un tablero en Miro con formato de Tabla dinámica estructurada y colores corporativos."""
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {miro_token}"
-    }
-    
-    # 1. Crear Tablero
-    board_url = "https://api.miro.com/v2/boards"
-    board_payload = {"name": f"Moodboard: {nombre_proyecto}"}
-    board_res = requests.post(board_url, json=board_payload, headers=headers).json()
-    board_id = board_res.get('id')
-    board_view_url = board_res.get('viewLink')
-    
-    if not board_id:
-        return None, f"Error creando el tablero: {board_res}"
-
-    # 2. Configuración de la "Tabla"
-    categorias = ["logo", "colores", "tipografia", "formas", "imagenes"]
-    titulos = ["Logotipo", "Colores", "Tipografía", "Formas", "Imágenes"]
-    
-    # Tus colores corporativos
-    color_azul = "#050038"
-    color_fondo = "#F8F6F2"
-    color_casilla = "#FFFFFF"
-    
-    ancho_columna = 500
-    alto_imagen = 400
-    margen = 50
-    
-    # Calcular el alto dinámico basado en la columna con más imágenes
-    max_imagenes = max([len(resultados_visuales.get(cat, {}).get('arena', []) + resultados_visuales.get(cat, {}).get('web', [])) for cat in categorias])
-    
-    # Si por alguna razón no hay imágenes, damos un alto mínimo
-    if max_imagenes == 0: max_imagenes = 1 
-    
-    alto_frame = (max_imagenes * (alto_imagen + margen)) + 250 # Espacio extra para la cabecera
-    ancho_frame = (len(categorias) * ancho_columna)
-    
-    # 3. Crear el Gran Frame Contenedor (El fondo gris de la tabla)
-    frame_payload = {
-        "data": {"title": f"Moodboard Estructurado - {nombre_proyecto}"},
-        "style": {"fillColor": color_fondo}, # <-- Aquí inyectamos el gris #F8F6F2
-        "position": {"x": ancho_frame / 2, "y": alto_frame / 2},
-        "geometry": {"width": ancho_frame, "height": alto_frame}
-    }
-    frame_res = requests.post(f"{board_url}/{board_id}/frames", json=frame_payload, headers=headers).json()
-    frame_id = frame_res.get('id')
-    
-    # 4. Dibujar las Columnas, Cabeceras e Imágenes
-    for col_idx, cat in enumerate(categorias):
-        # Posición base en X para esta columna (relativa al centro del frame)
-        col_x = (col_idx * ancho_columna) - (ancho_frame / 2) + (ancho_columna / 2)
-        
-        # Dibujar rectángulos blancos con texto azul (Cabeceras)
-        shape_payload = {
-            "data": {
-                "shape": "rectangle",
-                # <-- El texto va en tu azul corporativo #050038
-                "content": f"<p><span style='color: {color_azul}; font-family: sans-serif; font-size: 24px;'><strong>{titulos[col_idx]}</strong></span></p>"
-            },
-            "style": {
-                "fillColor": color_casilla,      # <-- La casilla en blanco
-                "borderColor": color_azul,       # <-- Borde azul para enmarcar
-                "borderStyle": "normal",
-                "textAlign": "center"
-            },
-            "position": {"x": col_x, "y": -(alto_frame / 2) + 100},
-            "geometry": {"width": ancho_columna - 40, "height": 80},
-            "parent": {"id": frame_id}
-        }
-        requests.post(f"{board_url}/{board_id}/shapes", json=shape_payload, headers=headers)
-        
-        # Obtener y acomodar las imágenes verticalmente en esta columna
-        todas_las_imagenes = resultados_visuales.get(cat, {}).get('arena', []) + resultados_visuales.get(cat, {}).get('web', [])
-        
-        for row_idx, img_url in enumerate(todas_las_imagenes):
-            img_y = -(alto_frame / 2) + 220 + (row_idx * (alto_imagen + margen)) + (alto_imagen / 2)
-            
-            img_payload = {
-                "data": {"url": img_url},
-                "parent": {"id": frame_id},
-                "position": {"x": col_x, "y": img_y},
-                "geometry": {"width": ancho_columna - 40} # Dejamos 40px de respiro (márgenes)
-            }
-            requests.post(f"{board_url}/{board_id}/images", json=img_payload, headers=headers)
-            
-    return board_view_url, None
 # ==========================================
 # INTERFAZ DE USUARIO (UI)
 # ==========================================
@@ -343,42 +266,41 @@ with tab5:
     st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre Fotográfico Dominante", value=st.session_state.form_data.get("img_encuadre", ""), placeholder="Ej: Amplio incluyendo paisajes, primer plano detalle, macro...")
     
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
-st.divider()
-if st.button("🚀 Generar y Buscar Moodboards"):
-    if not gemini_api_key:
-        st.error("Por favor ingresa tu API Key de OpenRouter en la barra lateral.")
-    else:
-        with st.spinner("🧠 1/2: Traduciendo tu concepto a código de búsqueda profesional..."):
-            try:
-                queries = generate_search_queries(st.session_state.form_data, gemini_api_key)
-                st.session_state.queries = queries
-            except Exception as e:
-                st.error(f"Hubo un error al generar los queries: {e}")
-                st.stop()
-                
-        with st.spinner("🌐 2/2: Escaneando Are.na y sitios de nicho... (Tomará unos segundos extra para evitar bloqueos anti-bot)"):
-            import time  # Importamos la librería de tiempo
+with st.spinner("🚀 Ejecutando búsqueda especializada en Brand New, Are.na y Unsplash..."):
+            import time
+            unsplash_key = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
             resultados_visuales = {}
             
-            for categoria, datos in st.session_state.queries.items():
-                # Buscamos en Are.na
-                img_arena = fetch_arena_images(datos['arena_query'], limit=4)
+            for categoria, query_texto in st.session_state.queries.items():
+                img_arena = []
+                img_web = []
                 
-                # PAUSA ESTRATÉGICA de 1.5 segundos para que Are.na y DuckDuckGo no nos bloqueen
-                time.sleep(1.5) 
+                # ESTRATEGIA MULTI-MOTOR SEGÚN LA CATEGORÍA VISUAL:
+                if categoria == "logo":
+                    # Brand New es el rey absoluto en Logotipos e Identidad
+                    img_web = fetch_brandnew_images(query_texto, limit=4)
+                    img_arena = fetch_arena_images(query_texto, limit=4)
+                    
+                elif categoria in ["tipografia", "formas"]:
+                    # Are.na es la mejor para Tipografía, Diagramación y Patrones Gráficos
+                    img_arena = fetch_arena_images(query_texto, limit=4)
+                    # Apoyo de Unsplash/BrandNew
+                    img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4)
+                    
+                else: # colores e imágenes
+                    # Unsplash es imbatible en Fotografía, Atmósferas y Paletas cromáticas
+                    img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4)
+                    img_arena = fetch_arena_images(query_texto, limit=4)
                 
-                # Buscamos en la Web
-                img_web = fetch_ddg_images(datos['web_query'], limit=4)
-                
-                # Otra pausa para proteger la siguiente iteración
-                time.sleep(1.5)
+                # Pausa ligera de seguridad
+                time.sleep(1)
                 
                 resultados_visuales[categoria] = {
                     "arena": img_arena,
                     "web": img_web
                 }
             
-            st.success("¡Moodboards recopilados con éxito!")
+            st.success("¡Moodboard profesional generado exitosamente!")
             
             # --- RENDERIZADO VISUAL EN PANTALLA ---
             st.write("## 🎨 Resultados del Moodboard")
