@@ -69,95 +69,80 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     return json.loads(raw_json)
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries estéticos y reduce la cadena de sitios para evitar bloqueos de DuckDuckGo."""
+    """Genera palabras clave puras y construye las cadenas de búsqueda en Python para evitar errores de la IA."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
-    # REDUJIMOS A 2 SITIOS: Esto evita que DuckDuckGo nos detecte como bot de spam
+    # 1. Sitios limitados estrictamente a 2 para que DuckDuckGo NO nos bloquee
     sites = "site:brandarchive.xyz OR site:thedieline.com"
     
+    # Helper: Previene que las casillas vacías envíen la palabra "None" a la IA
+    def clean_val(key):
+        val = form_data.get(key, "")
+        return str(val).strip() if val else ""
+    
+    # 2. Le pedimos a la IA SOLO adjetivos sueltos
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales.
+    Eres un director de arte. Lee estos datos y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
+    PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual, inspirador). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
     
-    REGLA DE ORO: Los buscadores odian los conceptos literales. 
-    IGNORA sujetos literales (viajeros, personas) y metáforas (puentes).
-    EXTRAE ÚNICAMENTE la ESTÉTICA VISUAL (ej: minimalista, orgánico, clean layout, editorial, bold).
-    MÁXIMO 2 a 3 PALABRAS por categoría (solo palabras en inglés).
+    Datos:
+    Logo: {clean_val('logo_estilo')} {clean_val('logo_referencias')}
+    Colores: {clean_val('color_muestras')} {clean_val('color_temperatura')}
+    Tipografía: {clean_val('tipo_clasificacion')} {clean_val('tipo_composicion')}
+    Formas: {clean_val('formas_estructura')} {clean_val('formas_estilo')}
+    Imágenes: {clean_val('img_vibe')} {clean_val('img_encuadre')}
     
-    Datos a traducir:
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_referencias')} (Agrega al final: logo)
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')} (Agrega al final: palette)
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_composicion')} (Agrega al final: typography)
-    Formas: {form_data.get('formas_estructura')}, {form_data.get('formas_estilo')} (Agrega al final: pattern)
-    Imágenes: {form_data.get('img_vibe')}, {form_data.get('img_encuadre')} (Agrega al final: photography)
-    
-    Para cada categoría genera:
-    1. 'arena_query': Las 2-3 palabras estéticas en inglés.
-    2. 'web_query': Las mismas palabras + la cadena: {sites}
-    
-    Responde ÚNICAMENTE en JSON con la estructura:
-    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
+    Responde ÚNICAMENTE en JSON con esta estructura exacta (solo adjetivos, máximo 2 palabras por campo):
+    {{"logo": "str", "colores": "str", "tipografia": "str", "formas": "str", "imagenes": "str"}}
     """
     
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
-    return json.loads(raw_json)
-
-
-def generate_search_queries(form_data, api_key):
-    """Genera queries estables, convierte las listas de la UI a texto y mantiene todos los sitios web originales."""
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+        keywords = json.loads(raw_json)
+    except Exception as e:
+        print(f"Error al conectar con IA o procesar JSON: {e}")
+        # Si la IA o la conexión fallan, usamos adjetivos genéricos de diseño para que el usuario siempre vea imágenes
+        keywords = {"logo": "minimal", "colores": "warm", "tipografia": "sans", "formas": "abstract", "imagenes": "editorial"}
+        
+    # 3. CONSTRUIMOS LAS BÚSQUEDAS EN PYTHON (A PRUEBA DE BALAS)
+    queries = {}
     
-    # Mantenemos TU cadena original con los 7 sitios web intactos
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    # Estos sufijos garantizan que el buscador sepa exactamente qué tipo de imagen traer
+    sufijos = {
+        "logo": "logo",
+        "colores": "palette",
+        "tipografia": "typography",
+        "formas": "pattern",
+        "imagenes": "photography"
+    }
     
-    # Helper: Convierte las listas (arrays) de los multiselect en texto limpio separado por comas
-    def safe_join(val):
-        return ", ".join(val) if isinstance(val, list) else str(val)
-
-    # Aplicamos el helper a las variables conflictivas
-    tipo = safe_join(form_data.get('tipo_clasificacion', []))
-    formas = safe_join(form_data.get('formas_elementos', []))
-    vibe = safe_join(form_data.get('img_vibe', []))
-    arq = safe_join(form_data.get('logo_arquetipo', []))
-    
-    prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales.
-    
-    REGLA DE ORO: Los buscadores de diseño (Are.na, BrandArchive) odian los conceptos literales. 
-    IGNORA sujetos (viajeros, culturas), metáforas (puentes) o arquetipos de marketing (explorador, sabio).
-    EXTRAE ÚNICAMENTE el "vibe" estético (minimalista, orgánico, cálido, geométrico).
-    MÁXIMO 2 o 3 PALABRAS por búsqueda.
-    
-    Datos crudos:
-    Logo: {form_data.get('logo_estilo')}, {arq}
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {tipo}, {form_data.get('tipo_peso')}
-    Formas: {form_data.get('formas_bordes')}, {formas}
-    Imágenes: {form_data.get('img_sujetos')}, {vibe}
-    
-    Ejemplos de cómo debes razonar:
-    - Si lees "Explorador, minimalista", busca solo: "minimalist logo"
-    - Si lees "Viajeros, cálido y acogedor", busca solo: "warm lifestyle photography"
-    - Si lees "Geométrica, Expresiva", elige solo una dominante: "geometric typography"
-    - Si lees "Sellos, fluidas", busca: "fluid graphic pattern" o "badge layout"
-    
-    Para cada categoría genera:
-    1. 'arena_query': Las 2-3 palabras estéticas clave.
-    2. 'web_query': Las mismas palabras + la cadena: {sites}
-    
-    Responde ÚNICAMENTE en JSON con la estructura:
-    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
-    """
-    
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
-    return json.loads(raw_json)
+    for cat, sufijo in sufijos.items():
+        base_kw = keywords.get(cat, "")
+        
+        # Validación extra por si la IA devuelve una lista o número en vez de texto
+        if not isinstance(base_kw, str):
+            base_kw = str(base_kw)
+            
+        base_kw = base_kw.strip()
+        
+        # Si la IA dejó el campo en blanco por error, lo forzamos a una palabra segura
+        if not base_kw:  
+            base_kw = "design"
+            
+        # Armamos el query perfecto para inyectarlo directo a los buscadores (Ej: "organic logo")
+        arena_q = f"{base_kw} {sufijo}"
+        web_q = f"{base_kw} {sufijo} {sites}"
+        
+        queries[cat] = {
+            "arena_query": arena_q,
+            "web_query": web_q
+        }
+        
+    return queries
 
 def fetch_arena_images(query, limit=4):
     """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
