@@ -314,84 +314,108 @@ with tab5:
     st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera Emocional", value=st.session_state.form_data.get("img_vibe", ""), placeholder="Ej: Introspectivo y reflexivo, dinámico e innovador, nostálgico...")
     st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre Fotográfico Dominante", value=st.session_state.form_data.get("img_encuadre", ""), placeholder="Ej: Amplio incluyendo paisajes, primer plano detalle, macro...")
     
-# --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
-with st.spinner("🚀 Ejecutando búsqueda especializada en Brand New, Are.na y Unsplash..."):
+# --- PASO 2: BOTÓN DE GENERACIÓN DE MOODBOARD ---
+st.divider()
+st.subheader("🎨 Paso 2: Generar Moodboard Visual")
+
+# Creamos la clave en session_state para guardar los resultados y que no se borren al interactuar
+if "resultados_visuales" not in st.session_state:
+    st.session_state.resultados_visuales = None
+
+col_btn1, col_btn2 = st.columns([2, 1])
+
+with col_btn1:
+    btn_generar = st.button("🚀 Generar Moodboard Visual", type="primary", use_container_width=True)
+
+if btn_generar:
+    if not openrouter_api_key:
+        st.error("⚠️ Por favor ingresa tu API Key de OpenRouter en la barra lateral.")
+    else:
+        # 1. Traducir parámetros a términos estéticos con la IA
+        with st.spinner("🧠 1/2: Analizando concepto estético con IA..."):
+            st.session_state.queries = generate_search_queries(st.session_state.form_data, openrouter_api_key)
+        
+        # 2. Ejecutar búsquedas multicanal
+        with st.spinner("🌐 2/2: Escaneando referencias en Brand New, Are.na y Unsplash..."):
             import time
             unsplash_key = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
-            resultados_visuales = {}
             
+            resultados = {}
             for categoria, query_texto in st.session_state.queries.items():
                 img_arena = []
                 img_web = []
                 
-                # ESTRATEGIA MULTI-MOTOR SEGÚN LA CATEGORÍA VISUAL:
-                if categoria == "logo":
-                    # Brand New es el rey absoluto en Logotipos e Identidad
-                    img_web = fetch_brandnew_images(query_texto, limit=4)
-                    img_arena = fetch_arena_images(query_texto, limit=4)
-                    
-                elif categoria in ["tipografia", "formas"]:
-                    # Are.na es la mejor para Tipografía, Diagramación y Patrones Gráficos
-                    img_arena = fetch_arena_images(query_texto, limit=4)
-                    # Apoyo de Unsplash/BrandNew
-                    img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4)
-                    
-                else: # colores e imágenes
-                    # Unsplash es imbatible en Fotografía, Atmósferas y Paletas cromáticas
-                    img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4)
-                    img_arena = fetch_arena_images(query_texto, limit=4)
+                # Búsqueda según la especialidad de cada plataforma
+                try:
+                    if categoria == "logo":
+                        img_web = fetch_brandnew_images(query_texto, limit=4)
+                        img_arena = fetch_arena_images(query_texto, limit=4)
+                    elif categoria in ["tipografia", "formas"]:
+                        img_arena = fetch_arena_images(query_texto, limit=4)
+                        img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4) if unsplash_key else fetch_brandnew_images(query_texto, limit=4)
+                    else:
+                        img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4) if unsplash_key else fetch_brandnew_images(query_texto, limit=4)
+                        img_arena = fetch_arena_images(query_texto, limit=4)
+                except Exception as e:
+                    print(f"Error procesando categoría {categoria}: {e}")
                 
-                # Pausa ligera de seguridad
-                time.sleep(1)
-                
-                resultados_visuales[categoria] = {
+                resultados[categoria] = {
                     "arena": img_arena,
                     "web": img_web
                 }
+                time.sleep(0.5)
             
-            st.success("¡Moodboard profesional generado exitosamente!")
-            
-            # --- RENDERIZADO VISUAL EN PANTALLA ---
-            st.write("## 🎨 Resultados del Moodboard")
-            
-            for categoria, imagenes in resultados_visuales.items():
-                st.write(f"### {categoria.upper()}")
-                
-                # --- MODO DIAGNÓSTICO: Ver qué buscó la IA ---
-                datos_busqueda = st.session_state.queries[categoria]
-                st.caption(f"🔍 **Are.na:** `{datos_busqueda.get('arena_query', '')}`")
-                st.caption(f"🔍 **Web:** `{datos_busqueda.get('web_query', '')}`")
-                
-                if not imagenes['arena'] and not imagenes['web']:
-                    st.warning("⚠️ Los buscadores no encontraron nada con estos términos o bloquearon la conexión.")
-                
-                if imagenes['arena']:
-                    st.caption("🟢 Extraído de Are.na")
-                    cols = st.columns(len(imagenes['arena']))
-                    for idx, img_url in enumerate(imagenes['arena']):
-                        with cols[idx]:
-                            st.image(img_url, use_column_width=True)
-                
-                if imagenes['web']:
-                    st.caption("🌐 Extraído de Web")
-                    cols = st.columns(len(imagenes['web']))
-                    for idx, img_url in enumerate(imagenes['web']):
-                        with cols[idx]:
-                            st.image(img_url, use_column_width=True)
-                st.divider()
+            # Guardamos los resultados en la memoria global de Streamlit
+            st.session_state.resultados_visuales = resultados
+            st.success("¡Moodboard generado con éxito!")
 
-            # --- VOLCADO A MIRO ---
-            st.write("## 🚀 Exportación a Miro")
-            
-            if not miro_token:
-                st.warning("⚠️ Agrega tu Access Token de Miro en la barra lateral para crear el tablero automáticamente.")
-            else:
-                with st.spinner("Conectando con Miro y organizando las imágenes en Frames... (Esto puede tomar un minuto)"):
-                    nombre_tablero = st.session_state.form_data.get('industria', 'Nueva Marca')
-                    miro_url, error = export_to_miro(resultados_visuales, miro_token, nombre_proyecto=nombre_tablero)
+# --- MOSTRAR RESULTADOS EN PANTALLA ---
+if st.session_state.resultados_visuales:
+    st.write("## 🎨 Resultados del Moodboard Visual")
+    
+    for categoria, imagenes in st.session_state.resultados_visuales.items():
+        st.write(f"### {categoria.upper()}")
+        
+        # Muestra el término exacto de búsqueda utilizado
+        query_usado = st.session_state.queries.get(categoria, '') if "queries" in st.session_state else ''
+        st.caption(f"🔍 **Búsqueda ejecutada:** `{query_usado}`")
+        
+        has_arena = len(imagenes.get('arena', [])) > 0
+        has_web = len(imagenes.get('web', [])) > 0
+        
+        if not has_arena and not has_web:
+            st.warning("⚠️ No se encontraron imágenes suficientes para este término.")
+        
+        # Referencias de Are.na
+        if has_arena:
+            st.caption("🟢 **Referencias de Are.na**")
+            cols = st.columns(len(imagenes['arena']))
+            for idx, img_url in enumerate(imagenes['arena']):
+                with cols[idx]:
+                    st.image(img_url, use_column_width=True)
+        
+        # Referencias de Brand New / Unsplash
+        if has_web:
+            st.caption("🌐 **Referencias de Brand New / Unsplash**")
+            cols = st.columns(len(imagenes['web']))
+            for idx, img_url in enumerate(imagenes['web']):
+                with cols[idx]:
+                    st.image(img_url, use_column_width=True)
                     
-                    if error:
-                        st.error(error)
-                    else:
-                        st.success("¡Tablero creado con éxito!")
-                        st.markdown(f"### 🎉 [Haz clic aquí para abrir tu Moodboard en Miro]({miro_url})")
+        st.divider()
+
+    # --- SECCIÓN DE EXPORTACIÓN A MIRO (OPCIONAL) ---
+    st.subheader("📌 Exportar a Miro")
+    miro_token = st.secrets.get("MIRO_TOKEN", "") or st.sidebar.text_input("Miro API Token:", type="password")
+    nombre_tablero = st.text_input("Nombre del Tablero en Miro:", value="Moodboard de Marca")
+    
+    if st.button("📤 Exportar a Miro"):
+        if not miro_token:
+            st.error("⚠️ Necesitas ingresar tu token de Miro para poder exportar.")
+        else:
+            with st.spinner("Creando tablero y enviando imágenes a Miro..."):
+                board_url, err = export_to_miro(st.session_state.resultados_visuales, miro_token, nombre_tablero)
+                if err:
+                    st.error(err)
+                else:
+                    st.success(f"¡Tablero creado en Miro con éxito! [Abrir Tablero]({board_url})")
