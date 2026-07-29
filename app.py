@@ -30,6 +30,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro sin importar si está en curvas."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
+    # 1. Convertimos las páginas del PDF a imágenes (Máximo las 3 primeras páginas)
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     content_payload = [
         {
@@ -43,11 +44,11 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
                 "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
-                "logo_estilo": "string", "logo_arquetipo": "string", "logo_referencias": "string",
+                "logo_estilo": "string", "logo_arquetipo": ["array de strings"], "logo_referencias": "string",
                 "color_muestras": "string", "color_temperatura": "string", "color_luz": "string",
-                "tipo_clasificacion": "string", "tipo_peso": "string", "tipo_muestra": "string",
-                "formas_bordes": "string", "formas_elementos": "string", "formas_layout": "string",
-                "img_sujetos": "string", "img_metafora": "string", "img_vibe": "string", "img_encuadre": "string"
+                "tipo_clasificacion": ["array de strings"], "tipo_peso": "string", "tipo_muestra": "string",
+                "formas_bordes": "string", "formas_elementos": ["array de strings"], "formas_layout": "string",
+                "img_sujetos": "string", "img_metafora": "string", "img_vibe": ["array de strings"], "img_encuadre": "string"
             }
             """
         }
@@ -62,6 +63,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             "image_url": {"url": f"data:image/png;base64,{base64_image}"}
         })
 
+    # 2. Enviamos las imágenes a la IA
     response = client.chat.completions.create(
         model="openai/gpt-4o-mini", 
         messages=[{"role": "user", "content": content_payload}]
@@ -70,35 +72,6 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
 
-
-def generate_search_queries(form_data, api_key):
-    """Genera queries en inglés usando OpenRouter."""
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
-    
-    prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
-    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
-    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
-    
-    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
-    1. 'arena_query': Palabras clave estéticas separadas por espacio.
-    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
-    
-    Responde ÚNICAMENTE en JSON con la estructura:
-    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
-    """
-    
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
-    return json.loads(raw_json)
 def fetch_arena_images(query, limit=4):
     """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
     url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
@@ -261,59 +234,59 @@ if uploaded_file is not None and st.button("✨ Analizar PDF con IA Visual"):
                 st.error(f"Hubo un error al procesar el archivo: {e}")
 
 # --- FORMULARIO DE PAUTAS VISUALES ---
-st.write("### 🗂️ Pautas Visuales")
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "1. Contexto", 
-    "2. Logotipo", 
-    "3. Color y Tipo", 
-    "4. Formas", 
-    "5. Fotografía"
-])
+st.header("1. Contexto Estratégico")
+col1, col2 = st.columns(2)
+with col1:
+    industria = st.text_input("Industria / Sector", value=st.session_state.form_data.get("industria", ""))
+    personalidad = st.text_input("Atributos de Personalidad (separados por coma)", value=st.session_state.form_data.get("personalidad", ""))
+with col2:
+    anti_referentes = st.text_input("Lo que NO queremos (Anti-referentes)", value=st.session_state.form_data.get("anti_referentes", ""))
+    resumen = st.text_area("Resumen del partido conceptual", value=st.session_state.form_data.get("resumen", ""))
+
+st.header("2. Casillas por Categoría Visual")
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Logotipo", "Colores", "Tipografía", "Formas", "Imágenes"])
+
+# Data guardada en variables temporales para evitar errores de selectbox
+d = st.session_state.form_data
 
 with tab1:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.session_state.form_data['industria'] = st.text_input("Industria / Categoría", value=st.session_state.form_data.get('industria', ''))
-        st.session_state.form_data['personalidad'] = st.text_input("Personalidad de Marca", value=st.session_state.form_data.get('personalidad', ''))
-    with col2:
-        st.session_state.form_data['anti_referentes'] = st.text_input("Anti-referentes (Lo que NO queremos)", value=st.session_state.form_data.get('anti_referentes', ''))
-    st.session_state.form_data['resumen'] = st.text_area("Resumen del Concepto", value=st.session_state.form_data.get('resumen', ''))
+    st.subheader("LOGOTIPO (Identidad y Símbolo)")
+    logo_estilo = st.text_input("Estilo del Símbolo", value=d.get("logo_estilo", ""), placeholder="Ej: Line art, Isotipo geométrico...")
+    logo_arquetipo = st.multiselect("Arquetipo Visual Primario", 
+                                    options=["Sabio", "Creador", "Explorador", "Gobernante", "Cuidador", "Rebelde", "Mago", "Héroe", "Amante", "Bufón", "Hombre Corriente", "Inocente"],
+                                    default=[a for a in d.get("logo_arquetipo", []) if a in ["Sabio", "Creador", "Explorador", "Gobernante", "Cuidador", "Rebelde", "Mago", "Héroe", "Amante", "Bufón", "Hombre Corriente", "Inocente"]])
+    logo_referencias = st.text_input("Marcas o Sectores de Referencia", value=d.get("logo_referencias", ""))
 
 with tab2:
-    col3, col4 = st.columns(2)
-    with col3:
-        st.session_state.form_data['logo_estilo'] = st.text_input("Estilo Visual del Logo", value=st.session_state.form_data.get('logo_estilo', ''))
-        st.session_state.form_data['logo_arquetipo'] = st.text_input("Arquetipo de Marca", value=st.session_state.form_data.get('logo_arquetipo', ''))
-    with col4:
-        st.session_state.form_data['logo_referencias'] = st.text_input("Referencias / Símbolos", value=st.session_state.form_data.get('logo_referencias', ''))
+    st.subheader("COLORES (Paleta & Atmósfera de Luz)")
+    color_muestras = st.text_input("Colores Clave & Acentos", value=d.get("color_muestras", ""), placeholder="Ej: Azul marino profundo, acentos dorados...")
+    color_temperatura = st.text_input("Temperatura & Saturación", value=d.get("color_temperatura", ""), placeholder="Ej: Cálido y terroso, Frío y corporativo...")
+    color_luz = st.text_input("Dirección de Iluminación", value=d.get("color_luz", ""), placeholder="Ej: Luz natural suave, Claroscuro dramático...")
 
 with tab3:
-    col5, col6 = st.columns(2)
-    with col5:
-        st.session_state.form_data['color_muestras'] = st.text_input("Muestras de Color", value=st.session_state.form_data.get('color_muestras', ''))
-        st.session_state.form_data['color_temperatura'] = st.text_input("Temperatura", value=st.session_state.form_data.get('color_temperatura', ''))
-        st.session_state.form_data['color_luz'] = st.text_input("Contraste / Luz", value=st.session_state.form_data.get('color_luz', ''))
-    with col6:
-        st.session_state.form_data['tipo_clasificacion'] = st.text_input("Clasificación Tipográfica", value=st.session_state.form_data.get('tipo_clasificacion', ''))
-        st.session_state.form_data['tipo_peso'] = st.text_input("Peso / Grosores", value=st.session_state.form_data.get('tipo_peso', ''))
-        st.session_state.form_data['tipo_muestra'] = st.text_input("Muestra de Uso", value=st.session_state.form_data.get('tipo_muestra', ''))
+    st.subheader("TIPO (Estilo Tipográfico)")
+    tipo_clasificacion = st.multiselect("Clasificación Tipográfica", 
+                                        options=["Sans Serif Geométrica", "Sans Serif Humanista", "Serif Clásica", "Monospaced", "Display / Expresiva"],
+                                        default=[t for t in d.get("tipo_clasificacion", []) if t in ["Sans Serif Geométrica", "Sans Serif Humanista", "Serif Clásica", "Monospaced", "Display / Expresiva"]])
+    tipo_peso = st.text_input("Peso y Personalidad", value=d.get("tipo_peso", ""))
+    tipo_muestra = st.text_input("Formato de Muestra Visual", value=d.get("tipo_muestra", ""))
 
 with tab4:
-    col7, col8 = st.columns(2)
-    with col7:
-        st.session_state.form_data['formas_bordes'] = st.text_input("Tratamiento de Bordes", value=st.session_state.form_data.get('formas_bordes', ''))
-        st.session_state.form_data['formas_elementos'] = st.text_input("Elementos Gráficos", value=st.session_state.form_data.get('formas_elementos', ''))
-    with col8:
-        st.session_state.form_data['formas_layout'] = st.text_input("Estructura / Layout", value=st.session_state.form_data.get('formas_layout', ''))
+    st.subheader("FORMAS (Recursos Gráficos y Layout)")
+    formas_bordes = st.text_input("Tratamiento de Bordes", value=d.get("formas_bordes", ""))
+    formas_elementos = st.multiselect("Elementos Gráficos Complementarios", 
+                                      options=["Tickets/Stickers", "Sellos y badges", "Retículas técnicas", "Capas de papel", "Marcos de foto", "Capas geológicas", "Anillos/Arcos"],
+                                      default=[f for f in d.get("formas_elementos", []) if f in ["Tickets/Stickers", "Sellos y badges", "Retículas técnicas", "Capas de papel", "Marcos de foto", "Capas geológicas", "Anillos/Arcos"]])
+    formas_layout = st.text_input("Estilo de Composición (Layout)", value=d.get("formas_layout", ""))
 
 with tab5:
-    col9, col10 = st.columns(2)
-    with col9:
-        st.session_state.form_data['img_sujetos'] = st.text_input("Sujetos / Elementos", value=st.session_state.form_data.get('img_sujetos', ''))
-        st.session_state.form_data['img_metafora'] = st.text_input("Metáfora Visual", value=st.session_state.form_data.get('img_metafora', ''))
-    with col10:
-        st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera", value=st.session_state.form_data.get('img_vibe', ''))
-        st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre / Composición", value=st.session_state.form_data.get('img_encuadre', ''))
+    st.subheader("IMÁGENES (Fotografía y Estilo de Vida)")
+    img_sujetos = st.text_input("Sujetos u Objetos Clave", value=d.get("img_sujetos", ""))
+    img_metafora = st.text_input("Metáfora Visual / Concepto 'Hero'", value=d.get("img_metafora", ""))
+    img_vibe = st.multiselect("Vibe / Atmósfera Emocional", 
+                              options=["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"],
+                              default=[v for v in d.get("img_vibe", []) if v in ["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"]])
+    img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""))
 
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
 st.divider()
