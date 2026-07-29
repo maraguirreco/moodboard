@@ -72,21 +72,34 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries en inglés usando OpenRouter."""
+    """Genera queries estables, convierte las listas de la UI a texto y mantiene todos los sitios web originales."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    
+    # Mantenemos TU cadena original con los 7 sitios web intactos
     sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    # Helper: Convierte las listas (arrays) de los multiselect en texto limpio separado por comas
+    def safe_join(val):
+        return ", ".join(val) if isinstance(val, list) else str(val)
+
+    # Aplicamos el helper a las variables conflictivas
+    tipo = safe_join(form_data.get('tipo_clasificacion', []))
+    formas = safe_join(form_data.get('formas_elementos', []))
+    vibe = safe_join(form_data.get('img_vibe', []))
+    arq = safe_join(form_data.get('logo_arquetipo', []))
     
     prompt = f"""
     Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
-    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
-    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
+    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')}
     
-    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
-    1. 'arena_query': Palabras clave estéticas separadas por espacio.
+    Logo: {form_data.get('logo_estilo')}, {arq}
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
+    Tipografía: {tipo}, {form_data.get('tipo_peso')} (IMPORTANTE: Agrega siempre la palabra "typography")
+    Formas: {form_data.get('formas_bordes')}, {formas} (IMPORTANTE: Agrega siempre la palabra "pattern" o "graphic")
+    Imágenes: {form_data.get('img_sujetos')}, {vibe}
+    
+    Para cada categoría genera:
+    1. 'arena_query': Palabras clave estéticas muy cortas (MÁXIMO 3 a 4 palabras. Sin anti-referentes).
     2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
     
     Responde ÚNICAMENTE en JSON con la estructura:
