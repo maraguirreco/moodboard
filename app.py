@@ -72,26 +72,29 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries regresando a la versión original funcional, con un parche para tipografía y formas."""
+    """Genera queries ultra-cortos y estructurados para evadir los bloqueos de DuckDuckGo y Are.na."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    # Reducimos los sitios a los dos más importantes para no saturar al buscador
+    sites = "site:brandarchive.xyz OR site:thedieline.com"
     
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    Eres un curador de diseño. Genera palabras clave en INGLÉS para buscar imágenes.
+    REGLA DE ORO: Para no bloquear los motores de búsqueda, usa MÁXIMO 2 PALABRAS por consulta. 
     
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
+    Aplica estrictamente esta fórmula usando los datos proporcionados:
+    1. Logo: [1 palabra que defina el estilo] + "logo". (Datos: {form_data.get('logo_estilo')})
+    2. Colores: [1 color principal] + "palette". (Datos: {form_data.get('color_muestras')})
+    3. Tipografia: [1 palabra clave] + "typography". (Datos: {form_data.get('tipo_clasificacion')})
+    4. Formas: [1 palabra clave] + "pattern". (Datos: {form_data.get('formas_bordes')})
+    5. Imagenes: [1 palabra clave] + "photography". (Datos: {form_data.get('img_vibe')})
     
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')} (IMPORTANTE: Agrega siempre la palabra "typography" o "typeface" al final)
-    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')} (IMPORTANTE: Agrega siempre la palabra "pattern" o "graphic elements" al final)
+    Para cada categoría genera:
+    1. 'arena_query': Solo las 2 palabras (Ej: "minimalist logo").
+    2. 'web_query': Las 2 palabras + la cadena: {sites}
+    (NOTA: No incluyas anti-referentes, rompen la búsqueda).
     
-    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
-    1. 'arena_query': Palabras clave estéticas separadas por espacio.
-    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
-    
-    Responde ÚNICAMENTE en JSON con la estructura:
+    Responde ÚNICAMENTE en JSON con la estructura exacta:
     {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
     """
     
