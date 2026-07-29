@@ -69,25 +69,26 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     return json.loads(raw_json)
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries de diseño usando estética pura y omitiendo conceptos literales."""
+    """Genera queries estéticos y reduce la cadena de sitios para evitar bloqueos de DuckDuckGo."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    # REDUJIMOS A 2 SITIOS: Esto evita que DuckDuckGo nos detecte como bot de spam
+    sites = "site:brandarchive.xyz OR site:thedieline.com"
     
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales en sitios de alto diseño.
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales.
     
-    REGLA DE ORO: Los buscadores de diseño odian los conceptos literales. 
-    IGNORA sujetos literales (viajeros, personas, animales) y metáforas (puentes).
-    EXTRAE ÚNICAMENTE la ESTÉTICA VISUAL (ej: minimalista, orgánico, clean layout, editorial, bold, warm, fluid).
+    REGLA DE ORO: Los buscadores odian los conceptos literales. 
+    IGNORA sujetos literales (viajeros, personas) y metáforas (puentes).
+    EXTRAE ÚNICAMENTE la ESTÉTICA VISUAL (ej: minimalista, orgánico, clean layout, editorial, bold).
     MÁXIMO 2 a 3 PALABRAS por categoría (solo palabras en inglés).
     
     Datos a traducir:
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_referencias')} (Sufijo sugerido: logo o brand mark)
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')} (Sufijo sugerido: palette)
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_composicion')} (Sufijo sugerido: typography o layout)
-    Formas: {form_data.get('formas_estructura')}, {form_data.get('formas_estilo')} (Sufijo sugerido: pattern o graphic)
-    Imágenes: {form_data.get('img_vibe')}, {form_data.get('img_encuadre')} (Sufijo sugerido: photography o art direction)
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_referencias')} (Agrega al final: logo)
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')} (Agrega al final: palette)
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_composicion')} (Agrega al final: typography)
+    Formas: {form_data.get('formas_estructura')}, {form_data.get('formas_estilo')} (Agrega al final: pattern)
+    Imágenes: {form_data.get('img_vibe')}, {form_data.get('img_encuadre')} (Agrega al final: photography)
     
     Para cada categoría genera:
     1. 'arena_query': Las 2-3 palabras estéticas en inglés.
@@ -399,6 +400,14 @@ if st.button("🚀 Generar y Buscar Moodboards"):
             for categoria, imagenes in resultados_visuales.items():
                 st.write(f"### {categoria.upper()}")
                 
+                # --- MODO DIAGNÓSTICO: Ver qué buscó la IA ---
+                datos_busqueda = st.session_state.queries[categoria]
+                st.caption(f"🔍 **Are.na:** `{datos_busqueda.get('arena_query', '')}`")
+                st.caption(f"🔍 **Web:** `{datos_busqueda.get('web_query', '')}`")
+                
+                if not imagenes['arena'] and not imagenes['web']:
+                    st.warning("⚠️ Los buscadores no encontraron nada con estos términos o bloquearon la conexión.")
+                
                 if imagenes['arena']:
                     st.caption("🟢 Extraído de Are.na")
                     cols = st.columns(len(imagenes['arena']))
@@ -407,7 +416,7 @@ if st.button("🚀 Generar y Buscar Moodboards"):
                             st.image(img_url, use_column_width=True)
                 
                 if imagenes['web']:
-                    st.caption("🌐 Extraído de TheDieline, BrandArchive, Cosmos, etc.")
+                    st.caption("🌐 Extraído de Web")
                     cols = st.columns(len(imagenes['web']))
                     for idx, img_url in enumerate(imagenes['web']):
                         with cols[idx]:
