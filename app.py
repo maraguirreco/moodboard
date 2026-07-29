@@ -72,21 +72,24 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries en inglés usando OpenRouter."""
+    """Genera queries en inglés usando OpenRouter con palabras clave de seguridad (Términos Ancla)."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
     
     prompt = f"""
-    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
-    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
-    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
-    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
-    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales. 
+    REGLA DE ORO: Mantén las búsquedas cortas (máximo 4-5 palabras) y agrega términos ancla para que los buscadores nunca fallen.
     
-    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
-    1. 'arena_query': Palabras clave estéticas separadas por espacio.
+    - Para Logo usa: "logo", "brand identity"
+    - Para Colores usa: "color palette", "branding"
+    - Para Tipografia usa siempre: "typography", "type specimen" o "editorial layout" + el estilo ({form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')})
+    - Para Formas usa siempre: "brand pattern", "graphic elements" o "visual identity" + el estilo ({form_data.get('formas_bordes')}, {form_data.get('formas_elementos')})
+    - Para Imagenes usa: "photography", "art direction" + el estilo ({form_data.get('img_vibe')})
+    
+    Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    
+    Para cada categoría genera:
+    1. 'arena_query': Palabras clave estéticas muy cortas (ej. "organic typography layout").
     2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
     
     Responde ÚNICAMENTE en JSON con la estructura:
@@ -99,6 +102,7 @@ def generate_search_queries(form_data, api_key):
     )
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
+    
 def fetch_arena_images(query, limit=4):
     """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
     url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
