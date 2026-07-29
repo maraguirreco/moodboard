@@ -16,18 +16,18 @@ st.set_page_config(page_title="Asistente de Dirección de Arte", layout="wide")
 if "form_data" not in st.session_state:
     st.session_state.form_data = {
         "industria": "", "personalidad": "", "resumen": "", "anti_referentes": "",
-        "logo_estilo": "", "logo_arquetipo": [], "logo_referencias": "",
+        "logo_estilo": "", "logo_referencias": "",
         "color_muestras": "", "color_temperatura": "", "color_luz": "",
-        "tipo_clasificacion": [], "tipo_peso": "", "tipo_muestra": "",
-        "formas_bordes": "", "formas_elementos": [], "formas_layout": "",
-        "img_sujetos": "", "img_metafora": "", "img_vibe": [], "img_encuadre": ""
+        "tipo_clasificacion": "", "tipo_personalidad": "", "tipo_composicion": "",
+        "formas_estructura": "", "formas_estilo": "", "formas_adicional": "",
+        "img_sujetos": "", "img_metafora": "", "img_vibe": "", "img_encuadre": ""
     }
 
 # ==========================================
 # FUNCIONES DE PROCESAMIENTO
 # ==========================================
 def analyze_pdf_with_vision(pdf_file, api_key):
-    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro sin importar si está en curvas."""
+    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -35,18 +35,16 @@ def analyze_pdf_with_vision(pdf_file, api_key):
         {
             "type": "text", 
             "text": """
-            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca (mapas mentales, diagramas, textos sueltos).
-            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales a partir de los conceptos que leas. 
-            Ejemplo: Si lees "Turismo consciente", deduce que la industria es "Turismo". Si ves colores en la imagen, descríbelos.
-            No seas literal, interpreta el mood y la esencia del documento.
+            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca.
+            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales estrictamente enfocados en DISEÑO, ignorando marketing o arquetipos.
             
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
                 "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
-                "logo_estilo": "string", "logo_arquetipo": "string", "logo_referencias": "string",
+                "logo_estilo": "string", "logo_referencias": "string",
                 "color_muestras": "string", "color_temperatura": "string", "color_luz": "string",
-                "tipo_clasificacion": "string", "tipo_peso": "string", "tipo_muestra": "string",
-                "formas_bordes": "string", "formas_elementos": "string", "formas_layout": "string",
+                "tipo_clasificacion": "string", "tipo_personalidad": "string", "tipo_composicion": "string",
+                "formas_estructura": "string", "formas_estilo": "string", "formas_adicional": "string",
                 "img_sujetos": "string", "img_metafora": "string", "img_vibe": "string", "img_encuadre": "string"
             }
             """
@@ -67,6 +65,42 @@ def analyze_pdf_with_vision(pdf_file, api_key):
         messages=[{"role": "user", "content": content_payload}]
     )
     
+    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw_json)
+
+def generate_search_queries(form_data, api_key):
+    """Genera queries de diseño usando estética pura y omitiendo conceptos literales."""
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    
+    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    prompt = f"""
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes visuales en sitios de alto diseño.
+    
+    REGLA DE ORO: Los buscadores de diseño odian los conceptos literales. 
+    IGNORA sujetos literales (viajeros, personas, animales) y metáforas (puentes).
+    EXTRAE ÚNICAMENTE la ESTÉTICA VISUAL (ej: minimalista, orgánico, clean layout, editorial, bold, warm, fluid).
+    MÁXIMO 2 a 3 PALABRAS por categoría (solo palabras en inglés).
+    
+    Datos a traducir:
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_referencias')} (Sufijo sugerido: logo o brand mark)
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')} (Sufijo sugerido: palette)
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_composicion')} (Sufijo sugerido: typography o layout)
+    Formas: {form_data.get('formas_estructura')}, {form_data.get('formas_estilo')} (Sufijo sugerido: pattern o graphic)
+    Imágenes: {form_data.get('img_vibe')}, {form_data.get('img_encuadre')} (Sufijo sugerido: photography o art direction)
+    
+    Para cada categoría genera:
+    1. 'arena_query': Las 2-3 palabras estéticas en inglés.
+    2. 'web_query': Las mismas palabras + la cadena: {sites}
+    
+    Responde ÚNICAMENTE en JSON con la estructura:
+    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
+    """
+    
+    response = client.chat.completions.create(
+        model="openai/gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
 
@@ -303,43 +337,33 @@ d = st.session_state.form_data
 
 with tab1:
     st.subheader("LOGOTIPO (Identidad y Símbolo)")
-    logo_estilo = st.text_input("Estilo del Símbolo", value=d.get("logo_estilo", ""), placeholder="Ej: Line art, Isotipo geométrico...")
-    logo_arquetipo = st.multiselect("Arquetipo Visual Primario", 
-                                    options=["Sabio", "Creador", "Explorador", "Gobernante", "Cuidador", "Rebelde", "Mago", "Héroe", "Amante", "Bufón", "Hombre Corriente", "Inocente"],
-                                    default=[a for a in d.get("logo_arquetipo", []) if a in ["Sabio", "Creador", "Explorador", "Gobernante", "Cuidador", "Rebelde", "Mago", "Héroe", "Amante", "Bufón", "Hombre Corriente", "Inocente"]])
-    logo_referencias = st.text_input("Marcas o Sectores de Referencia", value=d.get("logo_referencias", ""))
+    logo_estilo = st.text_input("Estilo del Símbolo", value=d.get("logo_estilo", ""), placeholder="Ej: Minimalista, orgánico, line art, isotipo geométrico...")
+    logo_referencias = st.text_input("Marcas o Sectores de Referencia", value=d.get("logo_referencias", ""), placeholder="Ej: Símbolos de conexión, escudos, tecnología limpia...")
 
 with tab2:
     st.subheader("COLORES (Paleta & Atmósfera de Luz)")
-    color_muestras = st.text_input("Colores Clave & Acentos", value=d.get("color_muestras", ""), placeholder="Ej: Azul marino profundo, acentos dorados...")
-    color_temperatura = st.text_input("Temperatura & Saturación", value=d.get("color_temperatura", ""), placeholder="Ej: Cálido y terroso, Frío y corporativo...")
-    color_luz = st.text_input("Dirección de Iluminación", value=d.get("color_luz", ""), placeholder="Ej: Luz natural suave, Claroscuro dramático...")
+    color_muestras = st.text_input("Colores Clave & Acentos", value=d.get("color_muestras", ""), placeholder="Ej: Verde suave, azul claro, tonos tierra...")
+    color_temperatura = st.text_input("Temperatura & Saturación", value=d.get("color_temperatura", ""), placeholder="Ej: Cálido y acogedor, frío y corporativo, desaturado...")
+    color_luz = st.text_input("Dirección de Iluminación", value=d.get("color_luz", ""), placeholder="Ej: Luminoso y natural, claroscuro dramático...")
 
 with tab3:
     st.subheader("TIPO (Estilo Tipográfico)")
-    tipo_clasificacion = st.multiselect("Clasificación Tipográfica", 
-                                        options=["Sans Serif Geométrica", "Sans Serif Humanista", "Serif Clásica", "Monospaced", "Display / Expresiva"],
-                                        default=[t for t in d.get("tipo_clasificacion", []) if t in ["Sans Serif Geométrica", "Sans Serif Humanista", "Serif Clásica", "Monospaced", "Display / Expresiva"]])
-    tipo_peso = st.text_input("Peso y Personalidad", value=d.get("tipo_peso", ""))
-    tipo_muestra = st.text_input("Formato de Muestra Visual", value=d.get("tipo_muestra", ""))
+    tipo_clasificacion = st.text_input("Clasificación Tipográfica", value=d.get("tipo_clasificacion", ""), placeholder="Ej: Serif, sans serif, geométrica, display...")
+    tipo_personalidad = st.text_input("Personalidad", value=d.get("tipo_personalidad", ""), placeholder="Ej: Ligero y accesible, elegante, técnico, ruidoso...")
+    tipo_composicion = st.text_input("Composición / Layout Tipográfico", value=d.get("tipo_composicion", ""), placeholder="Ej: Editorial limpio, tipografía suiza, brutalista, big typography...")
 
 with tab4:
-    st.subheader("FORMAS (Recursos Gráficos y Layout)")
-    formas_bordes = st.text_input("Tratamiento de Bordes", value=d.get("formas_bordes", ""))
-    formas_elementos = st.multiselect("Elementos Gráficos Complementarios", 
-                                      options=["Tickets/Stickers", "Sellos y badges", "Retículas técnicas", "Capas de papel", "Marcos de foto", "Capas geológicas", "Anillos/Arcos"],
-                                      default=[f for f in d.get("formas_elementos", []) if f in ["Tickets/Stickers", "Sellos y badges", "Retículas técnicas", "Capas de papel", "Marcos de foto", "Capas geológicas", "Anillos/Arcos"]])
-    formas_layout = st.text_input("Estilo de Composición (Layout)", value=d.get("formas_layout", ""))
+    st.subheader("FORMAS (Recursos Gráficos)")
+    formas_estructura = st.text_input("La Forma y la Estructura", value=d.get("formas_estructura", ""), placeholder="Ej: Organic shapes, fluid forms, abstract geometry, smooth curves...")
+    formas_estilo = st.text_input("Estilo de Referencia o 'Vibe'", value=d.get("formas_estilo", ""), placeholder="Ej: Aesthetic, clean layout, modern branding, flat design...")
+    formas_adicional = st.text_input("Información Adicional", value=d.get("formas_adicional", ""), placeholder="Ej: Sellos, stickers, texturas granuladas, líneas finas...")
 
 with tab5:
-    st.subheader("IMÁGENES (Fotografía y Estilo de Vida)")
-    img_sujetos = st.text_input("Sujetos u Objetos Clave", value=d.get("img_sujetos", ""))
-    img_metafora = st.text_input("Metáfora Visual / Concepto 'Hero'", value=d.get("img_metafora", ""))
-    img_vibe = st.multiselect("Vibe / Atmósfera Emocional", 
-                              options=["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"],
-                              default=[v for v in d.get("img_vibe", []) if v in ["Introspectivo y reflexivo", "Dinámico e innovador", "Solemne e institucional", "Cálido y acogedor", "Audaz"]])
-    img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""))
-
+    st.subheader("IMÁGENES")
+    img_sujetos = st.text_input("Sujetos u Objetos Clave", value=d.get("img_sujetos", ""), placeholder="Ej: Viajeros y culturas diversas, objetos cotidianos...")
+    img_metafora = st.text_input("Metáfora Visual / Concepto", value=d.get("img_metafora", ""), placeholder="Ej: Puentes y conexiones, crecimiento, transparencia...")
+    img_vibe = st.text_input("Vibe / Atmósfera Emocional", value=d.get("img_vibe", ""), placeholder="Ej: Introspectivo y reflexivo, dinámico e innovador, nostálgico...")
+    img_encuadre = st.text_input("Encuadre Fotográfico Dominante", value=d.get("img_encuadre", ""), placeholder="Ej: Amplio incluyendo paisajes, primer plano detalle, macro...")
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
 st.divider()
 if st.button("🚀 Generar y Buscar Moodboards"):
