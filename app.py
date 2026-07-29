@@ -30,7 +30,6 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro sin importar si está en curvas."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
-    # 1. Convertimos las páginas del PDF a imágenes (Máximo las 3 primeras páginas)
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     content_payload = [
         {
@@ -41,7 +40,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             Ejemplo: Si lees "Turismo consciente", deduce que la industria es "Turismo". Si ves colores en la imagen, descríbelos.
             No seas literal, interpreta el mood y la esencia del documento.
             
-     Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
+            Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
                 "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
                 "logo_estilo": "string", "logo_arquetipo": "string", "logo_referencias": "string",
@@ -63,7 +62,6 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             "image_url": {"url": f"data:image/png;base64,{base64_image}"}
         })
 
-    # 2. Enviamos las imágenes a la IA
     response = client.chat.completions.create(
         model="openai/gpt-4o-mini", 
         messages=[{"role": "user", "content": content_payload}]
@@ -72,6 +70,35 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
 
+
+def generate_search_queries(form_data, api_key):
+    """Genera queries en inglés usando OpenRouter."""
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
+    
+    prompt = f"""
+    Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
+    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
+    Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
+    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
+    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
+    
+    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
+    1. 'arena_query': Palabras clave estéticas separadas por espacio.
+    2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
+    
+    Responde ÚNICAMENTE en JSON con la estructura:
+    {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
+    """
+    
+    response = client.chat.completions.create(
+        model="openai/gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw_json)
 def fetch_arena_images(query, limit=4):
     """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
     url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
