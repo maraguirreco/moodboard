@@ -27,7 +27,7 @@ if "form_data" not in st.session_state:
 # FUNCIONES DE PROCESAMIENTO
 # ==========================================
 def analyze_pdf_with_vision(pdf_file, api_key):
-    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro."""
+    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro sin importar si está en curvas."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -35,17 +35,19 @@ def analyze_pdf_with_vision(pdf_file, api_key):
         {
             "type": "text", 
             "text": """
-            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca.
+            Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca (mapas mentales, diagramas, textos sueltos).
             Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales a partir de los conceptos que leas. 
+            Ejemplo: Si lees "Turismo consciente", deduce que la industria es "Turismo". Si ves colores en la imagen, descríbelos.
+            No seas literal, interpreta el mood y la esencia del documento.
             
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
                 "industria": "string", "personalidad": "string", "resumen": "string", "anti_referentes": "string",
-                "logo_estilo": "string", "logo_arquetipo": ["array de strings"], "logo_referencias": "string",
+                "logo_estilo": "string", "logo_arquetipo": "string", "logo_referencias": "string",
                 "color_muestras": "string", "color_temperatura": "string", "color_luz": "string",
-                "tipo_clasificacion": ["array de strings"], "tipo_peso": "string", "tipo_muestra": "string",
-                "formas_bordes": "string", "formas_elementos": ["array de strings"], "formas_layout": "string",
-                "img_sujetos": "string", "img_metafora": "string", "img_vibe": ["array de strings"], "img_encuadre": "string"
+                "tipo_clasificacion": "string", "tipo_peso": "string", "tipo_muestra": "string",
+                "formas_bordes": "string", "formas_elementos": "string", "formas_layout": "string",
+                "img_sujetos": "string", "img_metafora": "string", "img_vibe": "string", "img_encuadre": "string"
             }
             """
         }
@@ -70,31 +72,21 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries estables y convierte las listas de la UI a texto plano."""
+    """Genera queries en inglés usando OpenRouter."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com"
-    
-    # Convertimos las listas (arrays) a texto separado por comas para el buscador
-    def safe_join(val):
-        return ", ".join(val) if isinstance(val, list) else str(val)
-
-    tipo = safe_join(form_data.get('tipo_clasificacion', []))
-    formas = safe_join(form_data.get('formas_elementos', []))
-    vibe = safe_join(form_data.get('img_vibe', []))
-    arq = safe_join(form_data.get('logo_arquetipo', []))
+    sites = "site:brandarchive.xyz OR site:thedieline.com OR site:awwwards.com OR site:itsnicethat.com OR site:siteinspire.com OR site:designspiration.com OR site:cosmos.so"
     
     prompt = f"""
     Eres un curador de diseño experto. Traduce estos parámetros a palabras clave en INGLÉS para buscar referentes.
-    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')}
-    
-    Logo: {form_data.get('logo_estilo')}, {arq}
+    Industria: {form_data.get('industria')} | Anti-referentes: {form_data.get('anti_referentes')} (usa -palabra)
+    Logo: {form_data.get('logo_estilo')}, {form_data.get('logo_arquetipo')}
     Colores: {form_data.get('color_muestras')}, {form_data.get('color_temperatura')}
-    Tipografía: {tipo}, {form_data.get('tipo_peso')} (Agrega la palabra "typography")
-    Formas: {form_data.get('formas_bordes')}, {formas} (Agrega la palabra "pattern" o "graphic")
-    Imágenes: {form_data.get('img_sujetos')}, {vibe}
+    Tipografía: {form_data.get('tipo_clasificacion')}, {form_data.get('tipo_peso')}
+    Formas: {form_data.get('formas_bordes')}, {form_data.get('formas_elementos')}
+    Imágenes: {form_data.get('img_sujetos')}, {form_data.get('img_vibe')}
     
-    Para cada categoría genera:
-    1. 'arena_query': Palabras clave estéticas cortas (máximo 4 palabras).
+    Para cada categoría (logo, colores, tipografia, formas, imagenes), genera:
+    1. 'arena_query': Palabras clave estéticas separadas por espacio.
     2. 'web_query': Palabras clave + anti-referentes + la cadena: {sites}
     
     Responde ÚNICAMENTE en JSON con la estructura:
@@ -107,7 +99,6 @@ def generate_search_queries(form_data, api_key):
     )
     raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(raw_json)
-    
 def fetch_arena_images(query, limit=4):
     """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
     url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
@@ -279,12 +270,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "5. Fotografía"
 ])
 
-# Helper para evitar errores si la IA inventa una palabra que no está en la lista
-def safe_defaults(key, options):
-    val = st.session_state.form_data.get(key, [])
-    val_list = val if isinstance(val, list) else [val] if val else []
-    return [x for x in val_list if x in options]
-
 with tab1:
     col1, col2 = st.columns(2)
     with col1:
@@ -298,9 +283,7 @@ with tab2:
     col3, col4 = st.columns(2)
     with col3:
         st.session_state.form_data['logo_estilo'] = st.text_input("Estilo Visual del Logo", value=st.session_state.form_data.get('logo_estilo', ''))
-        
-        opciones_arq = ["Sabio", "Explorador", "Mago", "Héroe", "Amante", "Bufón", "Cuidador", "Creador", "Gobernante", "Inocente", "Rebelde", "Persona Normal"]
-        st.session_state.form_data['logo_arquetipo'] = st.multiselect("Arquetipo de Marca", options=opciones_arq, default=safe_defaults('logo_arquetipo', opciones_arq))
+        st.session_state.form_data['logo_arquetipo'] = st.text_input("Arquetipo de Marca", value=st.session_state.form_data.get('logo_arquetipo', ''))
     with col4:
         st.session_state.form_data['logo_referencias'] = st.text_input("Referencias / Símbolos", value=st.session_state.form_data.get('logo_referencias', ''))
 
@@ -311,8 +294,7 @@ with tab3:
         st.session_state.form_data['color_temperatura'] = st.text_input("Temperatura", value=st.session_state.form_data.get('color_temperatura', ''))
         st.session_state.form_data['color_luz'] = st.text_input("Contraste / Luz", value=st.session_state.form_data.get('color_luz', ''))
     with col6:
-        opciones_tipo = ["Serif", "Sans-Serif", "Slab Serif", "Script", "Display", "Monospace", "Orgánica", "Geométrica", "Sostenible", "Cultural"]
-        st.session_state.form_data['tipo_clasificacion'] = st.multiselect("Clasificación Tipográfica", options=opciones_tipo, default=safe_defaults('tipo_clasificacion', opciones_tipo))
+        st.session_state.form_data['tipo_clasificacion'] = st.text_input("Clasificación Tipográfica", value=st.session_state.form_data.get('tipo_clasificacion', ''))
         st.session_state.form_data['tipo_peso'] = st.text_input("Peso / Grosores", value=st.session_state.form_data.get('tipo_peso', ''))
         st.session_state.form_data['tipo_muestra'] = st.text_input("Muestra de Uso", value=st.session_state.form_data.get('tipo_muestra', ''))
 
@@ -320,9 +302,7 @@ with tab4:
     col7, col8 = st.columns(2)
     with col7:
         st.session_state.form_data['formas_bordes'] = st.text_input("Tratamiento de Bordes", value=st.session_state.form_data.get('formas_bordes', ''))
-        
-        opciones_formas = ["Círculos", "Curvas", "Líneas rectas", "Polígonos", "Orgánicas", "Geométricas", "Patrones", "Ilustraciones"]
-        st.session_state.form_data['formas_elementos'] = st.multiselect("Elementos Gráficos", options=opciones_formas, default=safe_defaults('formas_elementos', opciones_formas))
+        st.session_state.form_data['formas_elementos'] = st.text_input("Elementos Gráficos", value=st.session_state.form_data.get('formas_elementos', ''))
     with col8:
         st.session_state.form_data['formas_layout'] = st.text_input("Estructura / Layout", value=st.session_state.form_data.get('formas_layout', ''))
 
@@ -332,8 +312,7 @@ with tab5:
         st.session_state.form_data['img_sujetos'] = st.text_input("Sujetos / Elementos", value=st.session_state.form_data.get('img_sujetos', ''))
         st.session_state.form_data['img_metafora'] = st.text_input("Metáfora Visual", value=st.session_state.form_data.get('img_metafora', ''))
     with col10:
-        opciones_vibe = ["Inspirador", "Reflexivo", "Cultural", "Minimalista", "Elegante", "Divertido", "Nostálgico", "Corporativo", "Dinámico", "Sereno"]
-        st.session_state.form_data['img_vibe'] = st.multiselect("Vibe / Atmósfera", options=opciones_vibe, default=safe_defaults('img_vibe', opciones_vibe))
+        st.session_state.form_data['img_vibe'] = st.text_input("Vibe / Atmósfera", value=st.session_state.form_data.get('img_vibe', ''))
         st.session_state.form_data['img_encuadre'] = st.text_input("Encuadre / Composición", value=st.session_state.form_data.get('img_encuadre', ''))
 
 # --- BOTÓN FINAL: GENERAR Y BUSCAR MOODBOARDS ---
@@ -364,20 +343,11 @@ if st.button("🚀 Generar y Buscar Moodboards"):
             
             st.success("¡Moodboards recopilados con éxito!")
             
-# --- RENDERIZADO VISUAL EN PANTALLA ---
+            # --- RENDERIZADO VISUAL EN PANTALLA ---
             st.write("## 🎨 Resultados del Moodboard")
             
             for categoria, imagenes in resultados_visuales.items():
                 st.write(f"### {categoria.upper()}")
-                
-                # --- NUEVO: Mostrar qué intentó buscar la IA ---
-                datos_busqueda = st.session_state.queries[categoria]
-                st.caption(f"🔍 **Buscando en Are.na:** `{datos_busqueda.get('arena_query', '')}`")
-                st.caption(f"🔍 **Buscando en Web:** `{datos_busqueda.get('web_query', '')}`")
-                
-                # Advertencia si no encuentra nada
-                if not imagenes['arena'] and not imagenes['web']:
-                    st.warning("⚠️ No se encontraron imágenes con estos términos. Intenta con conceptos más simples.")
                 
                 if imagenes['arena']:
                     st.caption("🟢 Extraído de Are.na")
