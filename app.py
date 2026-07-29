@@ -72,26 +72,22 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 
 def generate_search_queries(form_data, api_key):
-    """Genera queries en inglés balanceando conceptos estéticos y términos ancla, sin saturar los buscadores."""
+    """Genera queries ultra-simples para no bloquear las librerías de los buscadores."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    
-    # Reducimos los sitios web a los 2 mejores para no bloquear a DuckDuckGo por exceso de texto
-    sites = "site:brandarchive.xyz OR site:thedieline.com"
     
     prompt = f"""
     Eres un curador de diseño. Genera palabras clave en INGLÉS para buscar referentes.
-    REGLA DE ORO: Combina los parámetros del formulario con un término ancla visual. Sé muy breve (máximo 3-4 palabras).
+    REGLA DE ORO: Los buscadores fallarán si usas más de 2 o 3 palabras. Sé EXTREMADAMENTE breve.
     
-    - Logo: Usa los conceptos de "{form_data.get('logo_estilo')}" y agrégale "logo" (Ej: "minimalist organic logo")
-    - Colores: Usa "{form_data.get('color_muestras')}" y agrégale "color palette" 
-    - Tipografia: Usa "{form_data.get('tipo_clasificacion')}" y agrégale "typography" o "layout"
-    - Formas: Usa "{form_data.get('formas_bordes')}" y agrégale "brand pattern" o "graphic elements"
-    - Imagenes: Usa "{form_data.get('img_vibe')}" y agrégale "photography" o "art direction"
+    - Logo: 1 palabra de "{form_data.get('logo_estilo')}" + "logo" (Ej: "organic logo")
+    - Colores: 1 color predominante de "{form_data.get('color_muestras')}" + "palette" (Ej: "green palette")
+    - Tipografia: 1 palabra de "{form_data.get('tipo_clasificacion')}" + "typography" (Ej: "fluid typography")
+    - Formas: 1 palabra de "{form_data.get('formas_bordes')}" + "pattern" (Ej: "rounded pattern")
+    - Imagenes: 1 palabra de "{form_data.get('img_vibe')}" + "photography" (Ej: "serene photography")
     
     Para cada categoría genera:
-    1. 'arena_query': Las palabras clave puras (ej. "organic minimalist logo").
-    2. 'web_query': Las mismas palabras clave puras + la cadena: {sites}
-    (NOTA: Omite los anti-referentes esta vez para no bloquear los motores de búsqueda).
+    1. 'arena_query': Solo las 2 o 3 palabras clave.
+    2. 'web_query': Las mismas palabras clave + "branding". (NINGÚN operador extra, nada de 'site:').
     
     Responde ÚNICAMENTE en JSON con la estructura:
     {{"logo": {{"arena_query": "str", "web_query": "str"}}, "colores": {{"arena_query": "str", "web_query": "str"}}, "tipografia": {{"arena_query": "str", "web_query": "str"}}, "formas": {{"arena_query": "str", "web_query": "str"}}, "imagenes": {{"arena_query": "str", "web_query": "str"}}}}
