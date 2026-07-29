@@ -357,12 +357,22 @@ if st.button("🚀 Generar y Buscar Moodboards"):
                 st.error(f"Hubo un error al generar los queries: {e}")
                 st.stop()
                 
-        with st.spinner("🌐 2/2: Escaneando Are.na y sitios de nicho para extraer imágenes..."):
+        with st.spinner("🌐 2/2: Escaneando Are.na y sitios de nicho... (Tomará unos segundos extra para evitar bloqueos anti-bot)"):
+            import time  # Importamos la librería de tiempo
             resultados_visuales = {}
             
             for categoria, datos in st.session_state.queries.items():
+                # Buscamos en Are.na
                 img_arena = fetch_arena_images(datos['arena_query'], limit=4)
+                
+                # PAUSA ESTRATÉGICA de 1.5 segundos para que Are.na y DuckDuckGo no nos bloqueen
+                time.sleep(1.5) 
+                
+                # Buscamos en la Web
                 img_web = fetch_ddg_images(datos['web_query'], limit=4)
+                
+                # Otra pausa para proteger la siguiente iteración
+                time.sleep(1.5)
                 
                 resultados_visuales[categoria] = {
                     "arena": img_arena,
