@@ -322,18 +322,26 @@ st.subheader("🎨 Paso 2: Generar Moodboard Visual")
 if "resultados_visuales" not in st.session_state:
     st.session_state.resultados_visuales = None
 
-col_btn1, col_btn2 = st.columns([2, 1])
+# Definimos columnas para que el botón NO sea gigante (ancho ajustado)
+col_btn1, col_btn2 = st.columns([1, 3])
 
 with col_btn1:
-    btn_generar = st.button("🚀 Generar Moodboard Visual", type="primary", use_container_width=True)
+    btn_generar = st.button("🚀 Generar Moodboard Visual", type="primary")
 
 if btn_generar:
-    if not openrouter_api_key:
+    # 1. Recuperar la API key de OpenRouter sin importar cómo se haya nombrado arriba
+    api_key_usable = (
+        st.secrets.get("OPENROUTER_API_KEY", "") or 
+        globals().get("openrouter_api_key", "") or 
+        globals().get("api_key", "")
+    )
+    
+    if not api_key_usable:
         st.error("⚠️ Por favor ingresa tu API Key de OpenRouter en la barra lateral.")
     else:
         # 1. Traducir parámetros a términos estéticos con la IA
         with st.spinner("🧠 1/2: Analizando concepto estético con IA..."):
-            st.session_state.queries = generate_search_queries(st.session_state.form_data, openrouter_api_key)
+            st.session_state.queries = generate_search_queries(st.session_state.form_data, api_key_usable)
         
         # 2. Ejecutar búsquedas multicanal
         with st.spinner("🌐 2/2: Escaneando referencias en Brand New, Are.na y Unsplash..."):
@@ -392,7 +400,7 @@ if st.session_state.resultados_visuales:
             cols = st.columns(len(imagenes['arena']))
             for idx, img_url in enumerate(imagenes['arena']):
                 with cols[idx]:
-                    st.image(img_url, use_column_width=True)
+                    st.image(img_url, use_container_width=True)
         
         # Referencias de Brand New / Unsplash
         if has_web:
@@ -400,7 +408,7 @@ if st.session_state.resultados_visuales:
             cols = st.columns(len(imagenes['web']))
             for idx, img_url in enumerate(imagenes['web']):
                 with cols[idx]:
-                    st.image(img_url, use_column_width=True)
+                    st.image(img_url, use_container_width=True)
                     
         st.divider()
 
