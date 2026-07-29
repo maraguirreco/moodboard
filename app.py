@@ -347,11 +347,20 @@ if st.button("🚀 Generar y Buscar Moodboards"):
             
             st.success("¡Moodboards recopilados con éxito!")
             
-            # --- RENDERIZADO VISUAL EN PANTALLA ---
+# --- RENDERIZADO VISUAL EN PANTALLA ---
             st.write("## 🎨 Resultados del Moodboard")
             
             for categoria, imagenes in resultados_visuales.items():
                 st.write(f"### {categoria.upper()}")
+                
+                # --- NUEVO: Mostrar qué intentó buscar la IA ---
+                datos_busqueda = st.session_state.queries[categoria]
+                st.caption(f"🔍 **Buscando en Are.na:** `{datos_busqueda.get('arena_query', '')}`")
+                st.caption(f"🔍 **Buscando en Web:** `{datos_busqueda.get('web_query', '')}`")
+                
+                # Advertencia si no encuentra nada
+                if not imagenes['arena'] and not imagenes['web']:
+                    st.warning("⚠️ No se encontraron imágenes con estos términos. Intenta con conceptos más simples.")
                 
                 if imagenes['arena']:
                     st.caption("🟢 Extraído de Are.na")
