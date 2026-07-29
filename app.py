@@ -69,18 +69,17 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     return json.loads(raw_json)
 
 def generate_search_queries(form_data, api_key):
-    """Genera palabras clave puras y construye las cadenas de búsqueda en Python para evitar errores de la IA."""
+    """Genera palabras clave puras y busca en toda la web enfocándose en sitios de diseño."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
-    # 1. Sitios limitados estrictamente a 2 para que DuckDuckGo NO nos bloquee
-    sites = "site:brandarchive.xyz OR site:thedieline.com"
+    # 1. ELIMINAMOS los comandos "site:" que bloqueaban la búsqueda. 
+    # En su lugar, usamos palabras clave de calidad para guiar al buscador.
+    quality_keywords = "branding design behance"
     
-    # Helper: Previene que las casillas vacías envíen la palabra "None" a la IA
     def clean_val(key):
         val = form_data.get(key, "")
         return str(val).strip() if val else ""
     
-    # 2. Le pedimos a la IA SOLO adjetivos sueltos
     prompt = f"""
     Eres un director de arte. Lee estos datos y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
     PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual, inspirador). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
@@ -104,14 +103,9 @@ def generate_search_queries(form_data, api_key):
         raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
         keywords = json.loads(raw_json)
     except Exception as e:
-        print(f"Error al conectar con IA o procesar JSON: {e}")
-        # Si la IA o la conexión fallan, usamos adjetivos genéricos de diseño para que el usuario siempre vea imágenes
         keywords = {"logo": "minimal", "colores": "warm", "tipografia": "sans", "formas": "abstract", "imagenes": "editorial"}
         
-    # 3. CONSTRUIMOS LAS BÚSQUEDAS EN PYTHON (A PRUEBA DE BALAS)
     queries = {}
-    
-    # Estos sufijos garantizan que el buscador sepa exactamente qué tipo de imagen traer
     sufijos = {
         "logo": "logo",
         "colores": "palette",
@@ -122,20 +116,16 @@ def generate_search_queries(form_data, api_key):
     
     for cat, sufijo in sufijos.items():
         base_kw = keywords.get(cat, "")
-        
-        # Validación extra por si la IA devuelve una lista o número en vez de texto
         if not isinstance(base_kw, str):
             base_kw = str(base_kw)
-            
         base_kw = base_kw.strip()
-        
-        # Si la IA dejó el campo en blanco por error, lo forzamos a una palabra segura
         if not base_kw:  
             base_kw = "design"
             
-        # Armamos el query perfecto para inyectarlo directo a los buscadores (Ej: "organic logo")
+        # Armamos los queries limpios
         arena_q = f"{base_kw} {sufijo}"
-        web_q = f"{base_kw} {sufijo} {sites}"
+        # Para la web, añadimos "branding design behance" para forzar alta calidad sin usar comandos restrictivos
+        web_q = f"{base_kw} {sufijo} {quality_keywords}"
         
         queries[cat] = {
             "arena_query": arena_q,
@@ -144,12 +134,14 @@ def generate_search_queries(form_data, api_key):
         
     return queries
 
+
 def fetch_arena_images(query, limit=4):
-    """Busca en la API pública de Are.na y devuelve URLs de imágenes."""
-    url = f"https://api.are.na/v2/search/blocks?q={query}&per=10"
+    """Busca en la API pública de Are.na manejando correctamente los espacios en la URL."""
+    url = "https://api.are.na/v2/search/blocks"
     images = []
     try:
-        response = requests.get(url)
+        # Usar 'params' en requests hace que Python codifique los espacios automáticamente (ej: transforma " " en "%20")
+        response = requests.get(url, params={"q": query, "per": 10})
         if response.status_code == 200:
             data = response.json()
             for block in data.get('blocks', []):
