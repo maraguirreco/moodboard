@@ -1,12 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-import fitz  
+import fitz
 import json
 import requests
-from duckduckgo_search import DDGS
-import re
 import base64
-import urllib.parse
 import time
 
 # ==========================================
@@ -25,10 +22,10 @@ if "form_data" not in st.session_state:
     }
 
 # ==========================================
-# FUNCIONES DE PROCESAMIENTO
+# FUNCIONES DE PROCESAMIENTO Y API
 # ==========================================
 def analyze_pdf_with_vision(pdf_file, api_key):
-    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro."""
+    """Convierte el PDF a imágenes y usa IA visual para leer el documento."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -37,7 +34,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             "type": "text", 
             "text": """
             Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca.
-            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales strictly enfocados en DISEÑO, ignorando marketing o arquetipos.
+            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales enfocados en DISEÑO.
             
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
@@ -70,7 +67,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
     return json.loads(raw_json)
 
 def fetch_arena_images(query, limit=4):
-    """Trae bloques de imagen de Are.na filtrando por calidad."""
+    """Trae bloques de imagen directamente de Are.na."""
     url = "https://api.are.na/v2/search/blocks"
     images = []
     try:
@@ -89,7 +86,7 @@ def fetch_arena_images(query, limit=4):
     return images
 
 def fetch_design_web_images(query, google_api_key, google_cx, limit=4):
-    """Busca imágenes EXCLUSIVAMENTE en tus sitios de elite vía Google Search API."""
+    """Busca imágenes en los 13 sitios de elite seleccionados vía Google Search API."""
     if not google_api_key or not google_cx:
         return []
         
@@ -110,10 +107,8 @@ def fetch_design_web_images(query, google_api_key, google_cx, limit=4):
             data = res.json()
             for item in data.get("items", []):
                 images.append(item["link"])
-        else:
-            print(f"Google API Error {res.status_code}: {res.text}")
     except Exception as e:
-        print(f"Error buscando en Google Custom Search para '{query}': {e}")
+        print(f"Error en Google Custom Search: {e}")
         
     return images
 
@@ -135,7 +130,7 @@ def fetch_unsplash_images(query, api_key, limit=4):
     return images
 
 def generate_search_queries(form_data, api_key):
-    """Genera keywords estéticas y distribuye las búsquedas por especialidad."""
+    """Genera keywords estéticas con OpenRouter."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     def clean_val(key):
@@ -143,7 +138,7 @@ def generate_search_queries(form_data, api_key):
         return str(val).strip() if val else ""
     
     prompt = f"""
-    Eres un director de arte. Lee estos datos de diseño y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
+    Eres un director de arte. Lee estos datos de diseño y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL.
     PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
     
     Datos:
