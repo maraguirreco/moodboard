@@ -162,4 +162,4 @@ def generate_search_queries(form_data, api_key):
             model="openai/gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
-        raw_json = response.choices[0].message.content.replace("```json", "").replace("
+        raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
