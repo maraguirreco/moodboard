@@ -70,25 +70,31 @@ def analyze_pdf_with_vision(pdf_file, api_key):
 
 import urllib.parse
 
-def fetch_arena_images(query, limit=4):
-    """Fortalece la búsqueda en Are.na trayendo más bloques por consulta y filtrando solo imágenes."""
-    url = "https://api.are.na/v2/search/blocks"
+def fetch_design_web_images(query, google_api_key, google_cx, limit=4):
+    """Busca imágenes de alta calidad EXCLUSIVAMENTE en tus 13 sitios de elite vía Google Search API."""
+    if not google_api_key or not google_cx:
+        return []
+        
+    url = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "q": query,
+        "cx": google_cx,
+        "key": google_api_key,
+        "searchType": "image",
+        "num": limit,
+        "safe": "off"
+    }
+    
     images = []
     try:
-        # Pedimos 25 bloques (en vez de 10) para tener un margen de selección de imágenes de alta calidad
-        response = requests.get(url, params={"q": query, "per": 25})
-        if response.status_code == 200:
-            data = response.json()
-            for block in data.get('blocks', []):
-                # Validamos que sea una imagen válida y tenga URL pública
-                if block.get('class') == 'Image' and 'image' in block and block['image'].get('display'):
-                    img_url = block['image']['display']['url']
-                    if img_url not in images:
-                        images.append(img_url)
-                    if len(images) >= limit:
-                        break
+        res = requests.get(url, params=params)
+        if res.status_code == 200:
+            data = res.json()
+            for item in data.get("items", []):
+                images.append(item["link"])
     except Exception as e:
-        print(f"Error en Are.na: {e}")
+        print(f"Error buscando en Google Custom Search para '{query}': {e}")
+        
     return images
 
 def fetch_unsplash_images(query, api_key, limit=4):
@@ -318,73 +324,76 @@ with tab5:
 st.divider()
 st.subheader("🎨 Paso 2: Generar Moodboard Visual")
 
-# Creamos la clave en session_state para guardar los resultados y que no se borren al interactuar
 if "resultados_visuales" not in st.session_state:
     st.session_state.resultados_visuales = None
 
-# Definimos columnas para que el botón NO sea gigante (ancho ajustado)
 col_btn1, col_btn2 = st.columns([1, 3])
 
 with col_btn1:
     btn_generar = st.button("🚀 Generar Moodboard Visual", type="primary")
 
 if btn_generar:
-    # 1. Recuperar la API key de OpenRouter sin importar cómo se haya nombrado arriba
     api_key_usable = (
         st.secrets.get("OPENROUTER_API_KEY", "") or 
         globals().get("openrouter_api_key", "") or 
         globals().get("api_key", "")
     )
     
+    google_key = st.secrets.get("GOOGLE_API_KEY", "")
+    google_cx = st.secrets.get("GOOGLE_CX", "")
+    unsplash_key = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
+    
     if not api_key_usable:
-        st.error("⚠️ Por favor ingresa tu API Key de OpenRouter en la barra lateral.")
+        st.error("⚠️ Por favor ingresa tu API Key de OpenRouter.")
+    elif not google_key or not google_cx:
+        st.error("⚠️ Falta configurar GOOGLE_API_KEY o GOOGLE_CX en tus secrets.")
     else:
-        # 1. Traducir parámetros a términos estéticos con la IA
         with st.spinner("🧠 1/2: Analizando concepto estético con IA..."):
             st.session_state.queries = generate_search_queries(st.session_state.form_data, api_key_usable)
         
-        # 2. Ejecutar búsquedas multicanal
-        with st.spinner("🌐 2/2: Escaneando referencias en Brand New, Are.na y Unsplash..."):
+        with st.spinner("🌐 2/2: Escaneando referencias en tus portales de elite y Are.na..."):
             import time
-            unsplash_key = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
-            
             resultados = {}
+            
             for categoria, query_texto in st.session_state.queries.items():
                 img_arena = []
                 img_web = []
                 
-                # Búsqueda según la especialidad de cada plataforma
                 try:
+                    # ARE.NA busca siempre en paralelo
+                    img_arena = fetch_arena_images(query_texto, limit=4)
+                    
                     if categoria == "logo":
-                        img_web = fetch_brandnew_images(query_texto, limit=4)
-                        img_arena = fetch_arena_images(query_texto, limit=4)
+                        # LOGOS: Exclusivo de tu lista de elite (Brand New, BrandArchive, Behance, etc.)
+                        img_web = fetch_design_web_images(f"{query_texto} identity logo", google_key, google_cx, limit=4)
                     elif categoria in ["tipografia", "formas"]:
-                        img_arena = fetch_arena_images(query_texto, limit=4)
-                        img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4) if unsplash_key else fetch_brandnew_images(query_texto, limit=4)
+                        # TIPOGRAFÍA Y FORMAS: Sitios de diseño de elite
+                        img_web = fetch_design_web_images(query_texto, google_key, google_cx, limit=4)
                     else:
-                        img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4) if unsplash_key else fetch_brandnew_images(query_texto, limit=4)
-                        img_arena = fetch_arena_images(query_texto, limit=4)
+                        # COLORES E IMÁGENES: Unsplash (si está activo) o Sitios de elite
+                        if unsplash_key:
+                            img_web = fetch_unsplash_images(query_texto, unsplash_key, limit=4)
+                        else:
+                            img_web = fetch_design_web_images(query_texto, google_key, google_cx, limit=4)
+                            
                 except Exception as e:
-                    print(f"Error procesando categoría {categoria}: {e}")
+                    print(f"Error procesando {categoria}: {e}")
                 
                 resultados[categoria] = {
                     "arena": img_arena,
                     "web": img_web
                 }
-                time.sleep(0.5)
+                time.sleep(0.3)
             
-            # Guardamos los resultados en la memoria global de Streamlit
             st.session_state.resultados_visuales = resultados
-            st.success("¡Moodboard generado con éxito!")
+            st.success("¡Moodboard profesional generado con éxito!")
 
-# --- MOSTRAR RESULTADOS EN PANTALLA ---
+# --- DISPLAY DE RESULTADOS ---
 if st.session_state.resultados_visuales:
     st.write("## 🎨 Resultados del Moodboard Visual")
     
     for categoria, imagenes in st.session_state.resultados_visuales.items():
         st.write(f"### {categoria.upper()}")
-        
-        # Muestra el término exacto de búsqueda utilizado
         query_usado = st.session_state.queries.get(categoria, '') if "queries" in st.session_state else ''
         st.caption(f"🔍 **Búsqueda ejecutada:** `{query_usado}`")
         
@@ -394,7 +403,6 @@ if st.session_state.resultados_visuales:
         if not has_arena and not has_web:
             st.warning("⚠️ No se encontraron imágenes suficientes para este término.")
         
-        # Referencias de Are.na
         if has_arena:
             st.caption("🟢 **Referencias de Are.na**")
             cols = st.columns(len(imagenes['arena']))
@@ -402,9 +410,9 @@ if st.session_state.resultados_visuales:
                 with cols[idx]:
                     st.image(img_url, use_container_width=True)
         
-        # Referencias de Brand New / Unsplash
         if has_web:
-            st.caption("🌐 **Referencias de Brand New / Unsplash**")
+            etiqueta_web = "🌐 **Referencias de Unsplash**" if categoria in ["colores", "imagenes"] and unsplash_key else "🌐 **Referencias de Elite (Brand New / Behance / BrandArchive)**"
+            st.caption(etiqueta_web)
             cols = st.columns(len(imagenes['web']))
             for idx, img_url in enumerate(imagenes['web']):
                 with cols[idx]:
