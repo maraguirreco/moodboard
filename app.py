@@ -1,11 +1,13 @@
 import streamlit as st
 from openai import OpenAI
-import fitz
+import fitz  
 import json
 import requests
-import base64
-import time
+from duckduckgo_search import DDGS
 import re
+import base64
+import urllib.parse
+import time
 
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA Y ESTADO
@@ -23,10 +25,10 @@ if "form_data" not in st.session_state:
     }
 
 # ==========================================
-# FUNCIONES DE PROCESAMIENTO Y APIS
+# FUNCIONES DE PROCESAMIENTO
 # ==========================================
 def analyze_pdf_with_vision(pdf_file, api_key):
-    """Convierte el PDF a imágenes y usa IA visual para leer el documento."""
+    """Convierte el PDF a imágenes y usa IA visual para leer el tablero de Miro."""
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -35,7 +37,7 @@ def analyze_pdf_with_vision(pdf_file, api_key):
             "type": "text", 
             "text": """
             Eres un Director de Arte experto. Analiza las siguientes imágenes de una conceptualización de marca.
-            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales enfocados en DISEÑO.
+            Tu trabajo es DEDUCIR E INTERPRETAR los parámetros visuales strictly enfocados en DISEÑO, ignorando marketing o arquetipos.
             
             Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             {
@@ -64,13 +66,12 @@ def analyze_pdf_with_vision(pdf_file, api_key):
         messages=[{"role": "user", "content": content_payload}]
     )
     
-    content = response.choices[0].message.content
-    clean_json = re.sub(r'```(?:json)?', '', content).strip()
-    return json.loads(clean_json)
+    raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+    return json.loads(raw_json)
 
 def fetch_arena_images(query, limit=4):
-    """Trae bloques de imagen directamente de Are.na."""
-    url = "[https://api.are.na/v2/search/blocks](https://api.are.na/v2/search/blocks)"
+    """Trae bloques de imagen de Are.na filtrando por calidad."""
+    url = "https://api.are.na/v2/search/blocks"
     images = []
     try:
         response = requests.get(url, params={"q": query, "per": 20}, timeout=10)
@@ -88,11 +89,11 @@ def fetch_arena_images(query, limit=4):
     return images
 
 def fetch_design_web_images(query, google_api_key, google_cx, limit=4):
-    """Busca imágenes en los 13 sitios de elite seleccionados vía Google Search API."""
+    """Busca imágenes EXCLUSIVAMENTE en tus sitios de elite vía Google Search API."""
     if not google_api_key or not google_cx:
         return []
         
-    url = "[https://www.googleapis.com/customsearch/v1](https://www.googleapis.com/customsearch/v1)"
+    url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "q": query,
         "cx": google_cx,
@@ -109,9 +110,56 @@ def fetch_design_web_images(query, google_api_key, google_cx, limit=4):
             data = res.json()
             for item in data.get("items", []):
                 images.append(item["link"])
+        else:
+            print(f"Google API Error {res.status_code}: {res.text}")
     except Exception as e:
-        print(f"Error en Google Custom Search: {e}")
+        print(f"Error buscando en Google Custom Search para '{query}': {e}")
         
     return images
 
-def fetch_unsplash_images
+def fetch_unsplash_images(query, api_key, limit=4):
+    """API Oficial de Unsplash para Fotografía y Moodboards."""
+    if not api_key:
+        return []
+    url = "https://api.unsplash.com/search/photos"
+    headers = {"Authorization": f"Client-ID {api_key}"}
+    params = {"query": query, "per_page": limit, "orientation": "squarish"}
+    images = []
+    try:
+        res = requests.get(url, headers=headers, params=params, timeout=10)
+        if res.status_code == 200:
+            for item in res.json().get('results', []):
+                images.append(item['urls']['regular'])
+    except Exception as e:
+        print(f"Error en Unsplash: {e}")
+    return images
+
+def generate_search_queries(form_data, api_key):
+    """Genera keywords estéticas y distribuye las búsquedas por especialidad."""
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    
+    def clean_val(key):
+        val = form_data.get(key, "")
+        return str(val).strip() if val else ""
+    
+    prompt = f"""
+    Eres un director de arte. Lee estos datos de diseño y devuelve SOLO 1 o 2 palabras clave en INGLÉS que definan la ESTÉTICA VISUAL. 
+    PROHIBIDO usar sujetos (viajeros) o sentimientos (intelectual). USA SOLO términos gráficos (minimal, geometric, bold, warm, fluid).
+    
+    Datos:
+    Logo: {clean_val('logo_estilo')}
+    Colores: {clean_val('color_muestras')}
+    Tipografía: {clean_val('tipo_clasificacion')}
+    Formas: {clean_val('formas_estructura')}
+    Imágenes: {clean_val('img_vibe')}
+    
+    Responde ÚNICAMENTE en JSON con la estructura:
+    {{"logo": "str", "colores": "str", "tipografia": "str", "formas": "str", "imagenes": "str"}}
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw_json = response.choices[0].message.content.replace("```json", "").replace("
