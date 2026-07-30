@@ -136,7 +136,7 @@ def fetch_unsplash_images(query, api_key, limit=4):
 
 def generate_search_queries(form_data, api_key):
     """Genera keywords estéticas y distribuye las búsquedas por especialidad."""
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    client = OpenAI(base_url="[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)", api_key=api_key)
     
     def clean_val(key):
         val = form_data.get(key, "")
@@ -162,4 +162,28 @@ def generate_search_queries(form_data, api_key):
             model="openai/gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
+        # Aquí estaba el corte. Esta línea debe ir completa:
         raw_json = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+        keywords = json.loads(raw_json)
+    except Exception as e:
+        print(f"Error generando keywords con IA: {e}")
+        keywords = {"logo": "minimal", "colores": "warm", "tipografia": "sans", "formas": "abstract", "imagenes": "editorial"}
+        
+    queries = {}
+    sufijos = {
+        "logo": "identity logo",
+        "colores": "color palette",
+        "tipografia": "typography layout",
+        "formas": "graphic pattern",
+        "imagenes": "photography"
+    }
+    
+    for cat, sufijo in sufijos.items():
+        base_kw = keywords.get(cat, "")
+        if not isinstance(base_kw, str): base_kw = str(base_kw)
+        base_kw = " ".join(base_kw.split()[:2])
+        if not base_kw: base_kw = "design"
+            
+        queries[cat] = f"{base_kw} {sufijo}"
+        
+    return queries
